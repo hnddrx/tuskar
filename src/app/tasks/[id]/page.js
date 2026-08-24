@@ -1,0 +1,331 @@
+"use client";
+
+import { Suspense, useState } from "react";
+import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
+import { FileDown, ExternalLink, GitBranch, Save, Undo2 } from "lucide-react";
+import { useTasks } from "@/context/TaskContext";
+import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/Badge";
+import { ProgressBar } from "@/components/ProgressBar";
+import InlineField from "@/components/InlineField";
+import CommentThread from "@/components/CommentThread";
+import PageHeader from "@/components/PageHeader";
+import Breadcrumbs from "@/components/Breadcrumbs";
+import { generateTaskDoc, downloadMarkdown } from "@/lib/docGenerator";
+
+export default function TaskDetailPage() {
+  return (
+    <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400">Loading…</div>}>
+      <TaskDetailPageInner />
+    </Suspense>
+  );
+}
+
+function TaskDetailPageInner() {
+  const { id } = useParams();
+  const searchParams = useSearchParams();
+  const { tasks, comments, config, updateTask } = useTasks();
+
+  // Unsaved edits, keyed by field, vs. the saved task — Odoo-style: fields
+  // read/write through this diff instead of writing straight to storage, so
+  // Save/Discard only appear while it's non-empty and disappear again the
+  // moment every field matches its saved value (including a manual revert).
+  const [pendingChanges, setPendingChanges] = useState({});
+
+  const task = tasks.find((t) => t.id === id);
+
+  if (!task) {
+    return (
+      <div className="flex-1 p-8">
+        <p className="text-sm text-slate-500">Task not found.</p>
+        <Link href="/tasks" className="text-sm text-slate-900 underline">
+          Back to task table
+        </Link>
+      </div>
+    );
+  }
+
+  const subtasks = tasks.filter((t) => t.parentId === task.id);
+  const isDirty = Object.keys(pendingChanges).length > 0;
+
+  function effective(field) {
+    return field in pendingChanges ? pendingChanges[field] : task[field];
+  }
+
+  function patchPending(field, value) {
+    setPendingChanges((prev) => {
+      const next = { ...prev };
+      if (value === task[field]) {
+        delete next[field];
+      } else {
+        next[field] = value;
+      }
+      return next;
+    });
+  }
+
+  function saveChanges() {
+    updateTask(task.id, pendingChanges);
+    setPendingChanges({});
+  }
+
+  function discardChanges() {
+    setPendingChanges({});
+  }
+
+  // Root of the breadcrumb trail: wherever this task was opened from
+  // (Task Table with its live filters, Board, or Auto Docs). Falls back to
+  // a plain Task Table link for a bookmarked/directly-pasted URL.
+  const from = searchParams.get("from") || "/tasks";
+  const fromLabel = searchParams.get("fromLabel") || "Task Table";
+
+  const ancestors = [];
+  let cursor = task.parentId ? tasks.find((t) => t.id === task.parentId) : null;
+  while (cursor) {
+    ancestors.unshift(cursor);
+    cursor = cursor.parentId ? tasks.find((t) => t.id === cursor.parentId) : null;
+  }
+
+  function relatedTaskHref(taskId) {
+    const params = new URLSearchParams({ from, fromLabel });
+    return `/tasks/${taskId}?${params.toString()}`;
+  }
+
+  const breadcrumbItems = [
+    { label: fromLabel, href: from },
+    ...ancestors.map((a) => ({ label: a.ticketId, href: relatedTaskHref(a.id) })),
+    { label: task.ticketId },
+  ];
+
+  function exportDoc() {
+    const doc = generateTaskDoc(task, comments, tasks);
+    downloadMarkdown(`${task.ticketId.replace(/[^a-z0-9-]/gi, "_")}.md`, doc);
+  }
+
+  return (
+    <div className="flex-1">
+      <PageHeader
+        title={
+          <InlineField
+            value={effective("name")}
+            onCommit={(v) => patchPending("name", v.trim() || "Untitled task")}
+            viewClassName="truncate text-lg font-semibold text-slate-900"
+          />
+        }
+        actions={
+          <>
+            {isDirty && (
+              <>
+                <button
+                  onClick={saveChanges}
+                  className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                >
+                  <Save size={14} /> Save
+                </button>
+                <button
+                  onClick={discardChanges}
+                  className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  <Undo2 size={14} /> Discard
+                </button>
+              </>
+            )}
+            <button
+              onClick={exportDoc}
+              className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <FileDown size={14} /> Export doc
+            </button>
+          </>
+        }
+      >
+        <Breadcrumbs items={breadcrumbItems} />
+        <div className="flex flex-wrap items-center gap-2">
+          <InlineField
+            type="select"
+            inline
+            value={effective("type")}
+            options={config.types}
+            onCommit={(v) => patchPending("type", v)}
+            renderView={(v) => <TypeBadge type={v} />}
+          />
+          <InlineField
+            type="select"
+            inline
+            value={effective("status")}
+            options={config.statuses}
+            onCommit={(v) => patchPending("status", v)}
+            renderView={(v) => <StatusBadge status={v} />}
+          />
+          <InlineField
+            type="select"
+            inline
+            value={effective("priority")}
+            options={config.priorities}
+            onCommit={(v) => patchPending("priority", v)}
+            renderView={(v) => <PriorityBadge priority={v} />}
+          />
+          <SyncBadge source={task.syncSource} />
+        </div>
+      </PageHeader>
+
+      <div className="px-4 py-6 sm:px-8">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="space-y-6 lg:col-span-2">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <h2 className="mb-2 text-sm font-semibold text-slate-800">
+                Description
+              </h2>
+              <InlineField
+                type="textarea"
+                value={effective("description") || ""}
+                onCommit={(v) => patchPending("description", v)}
+                placeholder="No description provided."
+                viewClassName="whitespace-pre-wrap text-sm leading-relaxed text-slate-600"
+              />
+            </section>
+
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <h2 className="mb-3 text-sm font-semibold text-slate-800">
+                Comments &amp; update history
+              </h2>
+              <CommentThread taskId={task.id} />
+            </section>
+
+            {subtasks.length > 0 && (
+              <section className="rounded-xl border border-slate-200 bg-white p-5">
+                <h2 className="mb-3 text-sm font-semibold text-slate-800">
+                  Subtasks ({subtasks.length})
+                </h2>
+                <div className="space-y-2">
+                  {subtasks.map((s) => (
+                    <Link
+                      key={s.id}
+                      href={relatedTaskHref(s.id)}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 hover:bg-slate-50"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="shrink-0 font-mono text-xs text-slate-400">
+                          {s.ticketId}
+                        </span>
+                        <span className="truncate text-sm text-slate-700">
+                          {s.name}
+                        </span>
+                      </div>
+                      <StatusBadge status={s.status} />
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <section className="rounded-xl border border-slate-200 bg-white p-5">
+              <h2 className="mb-3 text-sm font-semibold text-slate-800">Details</h2>
+              <dl className="space-y-3 text-sm">
+                <div>
+                  <dt className="text-xs text-slate-400">Assignee</dt>
+                  <dd className="mt-0.5 text-sm text-slate-700">
+                    <InlineField
+                      type="select"
+                      value={effective("assignee") || "Unassigned"}
+                      options={["Unassigned", ...config.assignees]}
+                      onCommit={(v) => patchPending("assignee", v)}
+                    />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-400">Start date</dt>
+                  <dd className="mt-0.5 text-sm text-slate-700">
+                    <InlineField
+                      type="date"
+                      value={effective("startDate") || ""}
+                      onCommit={(v) => patchPending("startDate", v || null)}
+                    />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-400">Target date</dt>
+                  <dd className="mt-0.5 text-sm text-slate-700">
+                    <InlineField
+                      type="date"
+                      value={effective("targetDate") || ""}
+                      onCommit={(v) => patchPending("targetDate", v || null)}
+                    />
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-400">Progress</dt>
+                  <dd className="mt-1">
+                    <InlineField
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={effective("progress") ?? 0}
+                      onCommit={(v) =>
+                        patchPending(
+                          "progress",
+                          Math.min(100, Math.max(0, Number(v) || 0))
+                        )
+                      }
+                      renderView={(v) => <ProgressBar value={v} />}
+                    />
+                  </dd>
+                </div>
+                <Field label="Last update" value={task.lastUpdate || "—"} />
+                <div>
+                  <dt className="text-xs text-slate-400">GitHub branch</dt>
+                  <dd className="mt-1 flex items-center gap-1.5 text-sm text-slate-700">
+                    <GitBranch size={13} className="shrink-0 text-slate-400" />
+                    <div className="min-w-0 flex-1">
+                      <InlineField
+                        value={effective("githubBranch") === "N/A" ? "" : effective("githubBranch")}
+                        onCommit={(v) => patchPending("githubBranch", v.trim() || "N/A")}
+                        placeholder="N/A"
+                        viewClassName="break-all font-mono text-xs"
+                      />
+                    </div>
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-400">Jira</dt>
+                  <dd className="mt-1 flex items-center gap-2 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <InlineField
+                        value={effective("jiraLink") || ""}
+                        onCommit={(v) => patchPending("jiraLink", v.trim() || null)}
+                        placeholder="Not linked"
+                        viewClassName="break-all text-xs"
+                      />
+                    </div>
+                    {effective("jiraLink") && (
+                      <a
+                        href={effective("jiraLink")}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Open in Jira"
+                        className="shrink-0 text-blue-600 hover:text-blue-700"
+                      >
+                        <ExternalLink size={14} />
+                      </a>
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, value }) {
+  return (
+    <div>
+      <dt className="text-xs text-slate-400">{label}</dt>
+      <dd className="mt-0.5 text-sm text-slate-700">{value}</dd>
+    </div>
+  );
+}
