@@ -1,8 +1,9 @@
-import { getJiraEnvConfig } from "@/lib/jira";
+import { getJiraPublicStatus } from "@/lib/jiraCredentials";
 
-// Reports whether Jira env vars are set, without ever exposing the token.
+// Reports whether Jira is configured (via the UI or env vars), without ever
+// exposing the token.
 export async function GET() {
-  const { configured, baseUrl, email } = getJiraEnvConfig();
+  const { configured, baseUrl, email } = await getJiraPublicStatus();
   return Response.json({
     configured,
     baseUrl: configured ? baseUrl : null,
