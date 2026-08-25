@@ -1,11 +1,13 @@
+import { auth } from "@clerk/nextjs/server";
 import { testJiraConnection } from "@/lib/jira";
 import { getJiraCredentials } from "@/lib/jiraCredentials";
 
 // Validates Jira credentials via GET /rest/api/3/myself. If the request body
 // includes baseUrl/email/apiToken, those unsaved form values are tested
 // directly (so a user can check before saving). Otherwise, whatever is
-// currently stored (UI-saved cookie, or env var fallback) is tested.
+// currently stored (UI-saved, or env var fallback) is tested.
 export async function POST(request) {
+  const { userId } = await auth();
   let body = {};
   try {
     body = await request.json();
@@ -15,14 +17,14 @@ export async function POST(request) {
 
   let creds;
   if (body.baseUrl || body.email || body.apiToken) {
-    const stored = body.apiToken ? null : await getJiraCredentials();
+    const stored = body.apiToken ? null : await getJiraCredentials(userId);
     creds = {
       baseUrl: body.baseUrl?.trim(),
       email: body.email?.trim(),
       apiToken: body.apiToken || stored?.apiToken,
     };
   } else {
-    creds = await getJiraCredentials();
+    creds = await getJiraCredentials(userId);
   }
 
   const result = await testJiraConnection(creds);

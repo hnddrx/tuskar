@@ -1,3 +1,4 @@
+import { auth } from "@clerk/nextjs/server";
 import { searchJiraIssues, mapJiraIssue } from "@/lib/jira";
 import { getJiraCredentials } from "@/lib/jiraCredentials";
 
@@ -7,6 +8,7 @@ import { getJiraCredentials } from "@/lib/jiraCredentials";
 // Jira, and nothing here is persisted server-side except the connection
 // settings themselves (see /api/jira/config).
 export async function POST(request) {
+  const { userId } = await auth();
   let body = {};
   try {
     body = await request.json();
@@ -14,7 +16,7 @@ export async function POST(request) {
     // no body provided, use stored defaults
   }
 
-  const creds = await getJiraCredentials();
+  const creds = await getJiraCredentials(userId);
   const explicitJql = (body.jql ?? creds.jql)?.trim();
   const jql =
     explicitJql ||

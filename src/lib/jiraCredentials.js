@@ -1,19 +1,11 @@
-// Server-only store for Jira connection settings, configured from the UI
-// instead of environment variables. Everything (including the API token)
-// lives in a single HttpOnly cookie — never readable by page JavaScript,
-// only ever sent to this app's own server routes. The token itself is
-// additionally encrypted before it's written to the cookie (see
-// serverCrypto.js).
-//
-// Env vars (JIRA_BASE_URL / JIRA_EMAIL / JIRA_API_TOKEN / JIRA_PROJECT) are
-// still honored as a fallback for anyone who prefers deploy-time config —
-// but the UI path (this file) takes priority and requires no .env changes.
+// Server-only store for Jira connection settings, one row per Clerk user in
+// the jira_config table. Everything (including the API token) stays
+// server-side; the token is additionally encrypted before it's stored (see
+// serverCrypto.js). Env vars (JIRA_BASE_URL / etc.) remain a fallback for
+// anyone who prefers deploy-time config over the UI.
 
-import { cookies } from "next/headers";
+import { getSql } from "@/lib/db";
 import { encrypt, decrypt } from "@/lib/serverCrypto";
-
-const COOKIE_NAME = "taskar_jira";
-const MAX_AGE = 60 * 60 * 24 * 365; // 1 year
 
 const EMPTY = {
   baseUrl: "",
@@ -24,31 +16,27 @@ const EMPTY = {
   githubBranchFieldId: "",
 };
 
-// Returns the full, decrypted config (including apiToken). Server-only —
-// route handlers must never send this object back to the client as-is.
-export async function getJiraCredentials() {
-  const store = await cookies();
-  const raw = store.get(COOKIE_NAME)?.value;
+function rowToCreds(row) {
+  return {
+    baseUrl: row.base_url,
+    email: row.email,
+    project: row.project,
+    jql: row.jql,
+    startDateFieldId: row.start_date_field_id,
+    githubBranchFieldId: row.github_branch_field_id,
+    apiToken: row.api_token_enc ? decrypt(row.api_token_enc) : "",
+  };
+}
 
-  let fromCookie = null;
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      fromCookie = {
-        ...EMPTY,
-        ...parsed,
-        apiToken: parsed.tokenEnc ? decrypt(parsed.tokenEnc) : "",
-      };
-    } catch {
-      fromCookie = null;
-    }
+export async function getJiraCredentials(userId) {
+  const sql = getSql();
+  const [row] = await sql`select * from jira_config where user_id = ${userId}`;
+  const fromDb = row ? rowToCreds(row) : null;
+
+  if (fromDb && fromDb.baseUrl && fromDb.email && fromDb.apiToken) {
+    return { ...fromDb, source: "ui" };
   }
 
-  if (fromCookie && fromCookie.baseUrl && fromCookie.email && fromCookie.apiToken) {
-    return { ...fromCookie, source: "ui" };
-  }
-
-  // Fall back to env vars if nothing (usable) is saved via the UI yet.
   const envBaseUrl = process.env.JIRA_BASE_URL?.replace(/\/+$/, "");
   if (envBaseUrl && process.env.JIRA_EMAIL && process.env.JIRA_API_TOKEN) {
     return {
@@ -56,9 +44,9 @@ export async function getJiraCredentials() {
       email: process.env.JIRA_EMAIL,
       apiToken: process.env.JIRA_API_TOKEN,
       project: process.env.JIRA_PROJECT || "",
-      jql: fromCookie?.jql || "",
-      startDateFieldId: fromCookie?.startDateFieldId || "",
-      githubBranchFieldId: fromCookie?.githubBranchFieldId || "",
+      jql: fromDb?.jql || "",
+      startDateFieldId: fromDb?.startDateFieldId || "",
+      githubBranchFieldId: fromDb?.githubBranchFieldId || "",
       source: "env",
     };
   }
@@ -66,10 +54,8 @@ export async function getJiraCredentials() {
   return { ...EMPTY, apiToken: "", source: "none" };
 }
 
-// Non-secret view safe to return to the client: everything except the
-// token, plus whether a token is currently set.
-export async function getJiraPublicStatus() {
-  const creds = await getJiraCredentials();
+export async function getJiraPublicStatus(userId) {
+  const creds = await getJiraCredentials(userId);
   return {
     configured: Boolean(creds.baseUrl && creds.email && creds.apiToken),
     source: creds.source,
@@ -83,21 +69,12 @@ export async function getJiraPublicStatus() {
   };
 }
 
-// Persists settings from the UI. `apiToken` is optional on update — pass it
-// only when the user is setting/changing it; omit to keep the existing one.
-export async function saveJiraCredentials(input) {
-  const store = await cookies();
-  const existingRaw = store.get(COOKIE_NAME)?.value;
-  let existingTokenEnc = null;
-  if (existingRaw) {
-    try {
-      existingTokenEnc = JSON.parse(existingRaw).tokenEnc || null;
-    } catch {
-      existingTokenEnc = null;
-    }
-  }
-
-  const tokenEnc = input.apiToken ? encrypt(input.apiToken) : existingTokenEnc;
+export async function saveJiraCredentials(userId, input) {
+  const sql = getSql();
+  const [existing] = await sql`
+    select api_token_enc from jira_config where user_id = ${userId}
+  `;
+  const tokenEnc = input.apiToken ? encrypt(input.apiToken) : existing?.api_token_enc || null;
 
   const payload = {
     baseUrl: (input.baseUrl || "").trim().replace(/\/+$/, ""),
@@ -106,21 +83,30 @@ export async function saveJiraCredentials(input) {
     jql: (input.jql || "").trim(),
     startDateFieldId: (input.startDateFieldId || "").trim(),
     githubBranchFieldId: (input.githubBranchFieldId || "").trim(),
-    tokenEnc,
   };
 
-  store.set(COOKIE_NAME, JSON.stringify(payload), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: MAX_AGE,
-  });
+  await sql`
+    insert into jira_config (
+      user_id, base_url, email, project, jql,
+      start_date_field_id, github_branch_field_id, api_token_enc
+    ) values (
+      ${userId}, ${payload.baseUrl}, ${payload.email}, ${payload.project}, ${payload.jql},
+      ${payload.startDateFieldId}, ${payload.githubBranchFieldId}, ${tokenEnc}
+    )
+    on conflict (user_id) do update set
+      base_url = excluded.base_url,
+      email = excluded.email,
+      project = excluded.project,
+      jql = excluded.jql,
+      start_date_field_id = excluded.start_date_field_id,
+      github_branch_field_id = excluded.github_branch_field_id,
+      api_token_enc = excluded.api_token_enc
+  `;
 
   return payload;
 }
 
-export async function clearJiraCredentials() {
-  const store = await cookies();
-  store.delete(COOKIE_NAME);
+export async function clearJiraCredentials(userId) {
+  const sql = getSql();
+  await sql`delete from jira_config where user_id = ${userId}`;
 }

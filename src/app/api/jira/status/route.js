@@ -1,9 +1,11 @@
+import { auth } from "@clerk/nextjs/server";
 import { getJiraPublicStatus } from "@/lib/jiraCredentials";
 
 // Reports whether Jira is configured (via the UI or env vars), without ever
 // exposing the token.
 export async function GET() {
-  const { configured, baseUrl, email } = await getJiraPublicStatus();
+  const { userId } = await auth();
+  const { configured, baseUrl, email } = await getJiraPublicStatus(userId);
   return Response.json({
     configured,
     baseUrl: configured ? baseUrl : null,
