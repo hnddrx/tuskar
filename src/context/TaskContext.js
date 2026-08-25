@@ -5,114 +5,177 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
+  useRef,
   useState,
+  useMemo,
 } from "react";
+import { useAuth } from "@clerk/nextjs";
 import seed from "@/data/seed.json";
 import { newId, nowIso, todayIso } from "@/lib/id";
 import { STORAGE_KEY } from "@/lib/constants";
 
 const TaskContext = createContext(null);
+const IMPORT_OFFERED_KEY = "taskar:import-offered:v1";
 
-function loadInitialState() {
-  if (typeof window === "undefined") {
-    return { tasks: seed.tasks, comments: seed.comments, config: seed.config };
-  }
+async function fetchState() {
+  const res = await fetch("/api/state");
+  if (!res.ok) throw new Error(`Failed to load state (${res.status})`);
+  return res.json();
+}
+
+function readLegacyLocalState() {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.tasks)) {
-        return {
-          tasks: parsed.tasks,
-          comments: parsed.comments || [],
-          config: {
-            statuses: parsed.config?.statuses || seed.config.statuses,
-            priorities: parsed.config?.priorities || seed.config.priorities,
-            types: parsed.config?.types || seed.config.types,
-            assignees: parsed.config?.assignees || seed.config.assignees,
-          },
-        };
-      }
-    }
-  } catch (err) {
-    console.warn("Failed to load taskar state from localStorage", err);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.tasks)) return null;
+    return {
+      tasks: parsed.tasks,
+      comments: parsed.comments || [],
+      config: {
+        statuses: parsed.config?.statuses || seed.config.statuses,
+        priorities: parsed.config?.priorities || seed.config.priorities,
+        types: parsed.config?.types || seed.config.types,
+        assignees: parsed.config?.assignees || seed.config.assignees,
+      },
+    };
+  } catch {
+    return null;
   }
-  return { tasks: seed.tasks, comments: seed.comments, config: seed.config };
 }
 
 export function TaskProvider({ children }) {
-  const [state, setState] = useState(() => ({
+  const { isLoaded, isSignedIn } = useAuth();
+  const [state, setState] = useState({
     tasks: seed.tasks,
     comments: seed.comments,
     config: seed.config,
-  }));
+  });
   const [hydrated, setHydrated] = useState(false);
+  const [syncError, setSyncError] = useState(null);
+  const failedRequestRef = useRef(null);
 
-  // Hydrate from localStorage on mount (client only, avoids SSR mismatch).
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState(loadInitialState());
-    setHydrated(true);
+  const syncCall = useCallback((requestFn) => {
+    requestFn()
+      .then(() => {
+        setSyncError(null);
+        failedRequestRef.current = null;
+      })
+      .catch((err) => {
+        console.warn("Taskar sync failed", err);
+        setSyncError(err.message || "Sync failed");
+        failedRequestRef.current = requestFn;
+      });
   }, []);
 
+  const retrySync = useCallback(() => {
+    if (failedRequestRef.current) syncCall(failedRequestRef.current);
+  }, [syncCall]);
+
+  const dismissSyncError = useCallback(() => setSyncError(null), []);
+
+  // Load state from the server once signed in; offer a one-time import of
+  // this browser's pre-cloud-sync localStorage data if the account is new.
   useEffect(() => {
-    if (!hydrated) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch (err) {
-      console.warn("Failed to persist taskar state to localStorage", err);
-    }
-  }, [state, hydrated]);
+    if (!isLoaded || !isSignedIn) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        let server = await fetchState();
+
+        const alreadyOffered = window.localStorage.getItem(IMPORT_OFFERED_KEY);
+        const legacy = alreadyOffered ? null : readLegacyLocalState();
+        if (!server.hasSynced && legacy && legacy.tasks.length > 0) {
+          const wantsImport = window.confirm(
+            "Import this device's existing tasks into your account?"
+          );
+          window.localStorage.setItem(IMPORT_OFFERED_KEY, "1");
+          if (wantsImport) {
+            const res = await fetch("/api/state/import", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(legacy),
+            });
+            if (res.ok) {
+              server = await fetchState();
+            }
+          }
+        } else if (!alreadyOffered) {
+          window.localStorage.setItem(IMPORT_OFFERED_KEY, "1");
+        }
+
+        if (cancelled) return;
+        setState({
+          tasks: server.tasks,
+          comments: server.comments,
+          config: server.config,
+        });
+      } catch (err) {
+        console.warn("Failed to load taskar state from server", err);
+      } finally {
+        if (!cancelled) setHydrated(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, isSignedIn]);
 
   const addTask = useCallback((task) => {
     const id = newId("task");
     const ts = nowIso();
-    setState((s) => ({
-      ...s,
-      tasks: [
-        ...s.tasks,
-        {
-          id,
-          ticketId: task.ticketId?.trim() || "N/A",
-          parentId: task.parentId || null,
-          type: task.type || "Task",
-          name: task.name?.trim() || "Untitled task",
-          status: task.status || s.config.statuses[0] || "Not Started",
-          priority: task.priority || "Normal",
-          assignee: task.assignee || "Unassigned",
-          startDate: task.startDate || null,
-          targetDate: task.targetDate || null,
-          progress: Number(task.progress) || 0,
-          lastUpdate: todayIso(),
-          description: task.description || "",
-          githubBranch: task.githubBranch || "N/A",
-          jiraLink: task.jiraLink || null,
-          commentCount: 0,
-          syncSource: task.syncSource || "Manual",
-          createdAt: ts,
-          updatedAt: ts,
-        },
-      ],
-    }));
+    const record = {
+      id,
+      ticketId: task.ticketId?.trim() || "N/A",
+      parentId: task.parentId || null,
+      type: task.type || "Task",
+      name: task.name?.trim() || "Untitled task",
+      status: task.status || "Not Started",
+      priority: task.priority || "Normal",
+      assignee: task.assignee || "Unassigned",
+      startDate: task.startDate || null,
+      targetDate: task.targetDate || null,
+      progress: Number(task.progress) || 0,
+      lastUpdate: todayIso(),
+      description: task.description || "",
+      githubBranch: task.githubBranch || "N/A",
+      jiraLink: task.jiraLink || null,
+      commentCount: 0,
+      syncSource: task.syncSource || "Manual",
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    setState((s) => ({ ...s, tasks: [...s.tasks, record] }));
+    syncCall(() =>
+      fetch("/api/state/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(record),
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to save task");
+      })
+    );
     return id;
-  }, []);
+  }, [syncCall]);
 
   const updateTask = useCallback((id, patch) => {
+    const fullPatch = { ...patch, lastUpdate: todayIso(), updatedAt: nowIso() };
     setState((s) => ({
       ...s,
-      tasks: s.tasks.map((t) =>
-        t.id === id
-          ? {
-              ...t,
-              ...patch,
-              lastUpdate: todayIso(),
-              updatedAt: nowIso(),
-            }
-          : t
-      ),
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...fullPatch } : t)),
     }));
-  }, []);
+    syncCall(() =>
+      fetch(`/api/state/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fullPatch),
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to update task");
+      })
+    );
+  }, [syncCall]);
 
   const deleteTask = useCallback((id) => {
     setState((s) => ({
@@ -122,33 +185,45 @@ export function TaskProvider({ children }) {
         .map((t) => (t.parentId === id ? { ...t, parentId: null } : t)),
       comments: s.comments.filter((c) => c.ticketId !== id),
     }));
-  }, []);
+    syncCall(() =>
+      fetch(`/api/state/tasks/${id}`, { method: "DELETE" }).then((res) => {
+        if (!res.ok) throw new Error("Failed to delete task");
+      })
+    );
+  }, [syncCall]);
 
   const addComment = useCallback((taskId, { author, text, parentCommentId = null, jiraIssueLink = null, syncSource = "Manual" }) => {
     const id = newId("comment");
     const ts = nowIso();
+    const record = {
+      id,
+      ticketId: taskId,
+      parentCommentId,
+      created: ts,
+      updated: ts,
+      author: author || "Me",
+      text: text || "",
+      jiraIssueLink,
+      syncSource,
+    };
     setState((s) => ({
       ...s,
-      comments: [
-        ...s.comments,
-        {
-          id,
-          ticketId: taskId,
-          parentCommentId,
-          created: ts,
-          updated: ts,
-          author: author || "Me",
-          text: text || "",
-          jiraIssueLink,
-          syncSource,
-        },
-      ],
+      comments: [...s.comments, record],
       tasks: s.tasks.map((t) =>
         t.id === taskId ? { ...t, commentCount: (t.commentCount || 0) + 1 } : t
       ),
     }));
+    syncCall(() =>
+      fetch("/api/state/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(record),
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to save comment");
+      })
+    );
     return id;
-  }, []);
+  }, [syncCall]);
 
   const deleteComment = useCallback((commentId, taskId) => {
     setState((s) => ({
@@ -160,77 +235,122 @@ export function TaskProvider({ children }) {
           : t
       ),
     }));
-  }, []);
+    syncCall(() =>
+      fetch(`/api/state/comments/${commentId}?taskId=${encodeURIComponent(taskId)}`, {
+        method: "DELETE",
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to delete comment");
+      })
+    );
+  }, [syncCall]);
 
   const updateConfig = useCallback((key, values) => {
-    setState((s) => ({
-      ...s,
-      config: { ...s.config, [key]: values },
-    }));
-  }, []);
+    setState((s) => ({ ...s, config: { ...s.config, [key]: values } }));
+    syncCall(() =>
+      fetch("/api/state/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, values }),
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to update config");
+      })
+    );
+  }, [syncCall]);
 
   // Merge Jira-sourced issues (one-way pull). Matches by ticketId; creates new
-  // tasks for issues we haven't seen, updates Jira-owned fields on existing ones,
-  // and never touches tasks whose syncSource is "Manual".
+  // tasks for issues we haven't seen, updates Jira-owned fields on existing
+  // ones, and never touches tasks whose syncSource is "Manual". Reads
+  // `state.tasks` directly (not via a setState updater) so the same records
+  // used to update local state are the ones sent to the API.
   const mergeJiraIssues = useCallback((issues) => {
-    let created = 0;
-    let updated = 0;
-    setState((s) => {
-      const byTicket = new Map(s.tasks.map((t) => [t.ticketId, t]));
-      const tasks = [...s.tasks];
-      for (const issue of issues) {
-        const existing = byTicket.get(issue.ticketId);
-        if (existing) {
-          const idx = tasks.findIndex((t) => t.id === existing.id);
-          tasks[idx] = {
-            ...existing,
-            name: issue.name,
-            status: issue.status,
-            priority: issue.priority || existing.priority,
-            assignee: issue.assignee || existing.assignee,
-            targetDate: issue.targetDate ?? existing.targetDate,
-            startDate: issue.startDate ?? existing.startDate,
-            description: issue.description ?? existing.description,
-            jiraLink: issue.jiraLink,
-            syncSource: "Jira",
-            lastUpdate: todayIso(),
-            updatedAt: nowIso(),
-          };
-          updated += 1;
-        } else {
-          const id = newId("task");
-          tasks.push({
-            id,
-            ticketId: issue.ticketId,
-            parentId: null,
-            type: issue.type || "Task",
-            name: issue.name,
-            status: issue.status,
-            priority: issue.priority || "Normal",
-            assignee: issue.assignee || "Unassigned",
-            startDate: issue.startDate || null,
-            targetDate: issue.targetDate || null,
-            progress: 0,
-            lastUpdate: todayIso(),
-            description: issue.description || "",
-            githubBranch: "N/A",
-            jiraLink: issue.jiraLink,
-            commentCount: 0,
-            syncSource: "Jira",
-            createdAt: nowIso(),
-            updatedAt: nowIso(),
-          });
-          created += 1;
-        }
+    const byTicket = new Map(state.tasks.map((t) => [t.ticketId, t]));
+    const toCreate = [];
+    const toUpdate = [];
+    const ts = nowIso();
+
+    for (const issue of issues) {
+      const existing = byTicket.get(issue.ticketId);
+      if (existing) {
+        toUpdate.push({
+          ...existing,
+          name: issue.name,
+          status: issue.status,
+          priority: issue.priority || existing.priority,
+          assignee: issue.assignee || existing.assignee,
+          targetDate: issue.targetDate ?? existing.targetDate,
+          startDate: issue.startDate ?? existing.startDate,
+          description: issue.description ?? existing.description,
+          jiraLink: issue.jiraLink,
+          syncSource: "Jira",
+          lastUpdate: todayIso(),
+          updatedAt: ts,
+        });
+      } else {
+        toCreate.push({
+          id: newId("task"),
+          ticketId: issue.ticketId,
+          parentId: null,
+          type: issue.type || "Task",
+          name: issue.name,
+          status: issue.status,
+          priority: issue.priority || "Normal",
+          assignee: issue.assignee || "Unassigned",
+          startDate: issue.startDate || null,
+          targetDate: issue.targetDate || null,
+          progress: 0,
+          lastUpdate: todayIso(),
+          description: issue.description || "",
+          githubBranch: "N/A",
+          jiraLink: issue.jiraLink,
+          commentCount: 0,
+          syncSource: "Jira",
+          createdAt: ts,
+          updatedAt: ts,
+        });
       }
-      return { ...s, tasks };
-    });
-    return { created, updated };
-  }, []);
+    }
+
+    const updateById = new Map(toUpdate.map((t) => [t.id, t]));
+    const nextTasks = [
+      ...state.tasks.map((t) => updateById.get(t.id) || t),
+      ...toCreate,
+    ];
+    setState((s) => ({ ...s, tasks: nextTasks }));
+
+    for (const task of toCreate) {
+      syncCall(() =>
+        fetch("/api/state/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(task),
+        }).then((res) => {
+          if (!res.ok) throw new Error("Failed to save imported task");
+        })
+      );
+    }
+    for (const task of toUpdate) {
+      syncCall(() =>
+        fetch(`/api/state/tasks/${task.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(task),
+        }).then((res) => {
+          if (!res.ok) throw new Error("Failed to save imported task");
+        })
+      );
+    }
+
+    return { created: toCreate.length, updated: toUpdate.length };
+  }, [state.tasks, syncCall]);
 
   const resetToSeed = useCallback(() => {
     setState({ tasks: seed.tasks, comments: seed.comments, config: seed.config });
-  }, []);
+    syncCall(() =>
+      fetch("/api/state/reset", { method: "POST" }).then((res) => {
+        if (!res.ok) throw new Error("Failed to reset data");
+      })
+    );
+  }, [syncCall]);
 
   const value = useMemo(
     () => ({
@@ -238,6 +358,9 @@ export function TaskProvider({ children }) {
       comments: state.comments,
       config: state.config,
       hydrated,
+      syncError,
+      retrySync,
+      dismissSyncError,
       addTask,
       updateTask,
       deleteTask,
@@ -250,6 +373,9 @@ export function TaskProvider({ children }) {
     [
       state,
       hydrated,
+      syncError,
+      retrySync,
+      dismissSyncError,
       addTask,
       updateTask,
       deleteTask,
