@@ -14,6 +14,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
+import { UserButton } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 import { DONE_STATUSES } from "@/lib/constants";
 
@@ -76,25 +77,49 @@ function OpenCount({ hydrated, count }) {
         </p>
       </div>
       <p className="mt-3 px-1 text-[11px] leading-snug text-slate-400">
-        Task data is stored in your browser only. Jira credentials are
-        stored server-side and never sent to the browser.
+        Your tasks, comments, and Jira connection are saved to your account and
+        sync across every device you sign in on.
       </p>
+    </div>
+  );
+}
+
+function SyncErrorBanner({ error, onRetry, onDismiss }) {
+  if (!error) return null;
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-800">
+      <span>Couldn&apos;t save your last change: {error}</span>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onRetry}
+          className="rounded-md bg-amber-100 px-2 py-1 font-medium hover:bg-amber-200"
+        >
+          Retry
+        </button>
+        <button onClick={onDismiss} className="text-amber-500 hover:text-amber-700">
+          Dismiss
+        </button>
+      </div>
     </div>
   );
 }
 
 export default function AppShell({ children }) {
   const pathname = usePathname();
-  const { tasks, hydrated } = useTasks();
+  const { tasks, hydrated, syncError, retrySync, dismissSyncError } = useTasks();
   const [drawerOpen, setDrawerOpen] = useState(false);
-
-  const openCount = tasks.filter((t) => !DONE_STATUSES.includes(t.status)).length;
 
   // Close the mobile drawer whenever the route changes.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDrawerOpen(false);
   }, [pathname]);
+
+  if (pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up")) {
+    return <div className="min-h-screen bg-slate-50">{children}</div>;
+  }
+
+  const openCount = tasks.filter((t) => !DONE_STATUSES.includes(t.status)).length;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -124,7 +149,10 @@ export default function AppShell({ children }) {
           />
           <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-xl">
             <div className="flex items-center justify-between">
-              <Brand />
+              <div className="flex items-center justify-between flex-1">
+                <Brand />
+                <UserButton />
+              </div>
               <button
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Close menu"
@@ -141,12 +169,18 @@ export default function AppShell({ children }) {
 
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-slate-200 bg-white md:flex">
-        <Brand />
+        <div className="flex items-center justify-between pr-4">
+          <Brand />
+          <UserButton />
+        </div>
         <NavLinks pathname={pathname} />
         <OpenCount hydrated={hydrated} count={openCount} />
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-col md:ml-60">{children}</div>
+      <div className="flex min-h-screen min-w-0 flex-col md:ml-60">
+        <SyncErrorBanner error={syncError} onRetry={retrySync} onDismiss={dismissSyncError} />
+        {children}
+      </div>
     </div>
   );
 }
