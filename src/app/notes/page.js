@@ -113,7 +113,7 @@ export default function NotesPage() {
         ) : filtered.length === 0 ? (
           <p className="text-sm text-slate-400 dark:text-slate-500">No notes yet.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {filtered.map((note) => {
               const linkedTask = note.linkedTaskId
                 ? tasks.find((t) => t.id === note.linkedTaskId)
@@ -122,20 +122,20 @@ export default function NotesPage() {
                 <Link
                   key={note.id}
                   href={`/notes/${note.id}`}
-                  className="block rounded-lg border border-slate-200 bg-white px-4 py-3 transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600"
+                  className="block py-5 transition-opacity hover:opacity-70"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="mb-1.5 flex items-center gap-2">
                     <NoteTypeBadge type={note.type} />
-                    <span className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
-                      {note.title || "Untitled note"}
-                    </span>
                     {linkedTask && (
                       <span className="whitespace-nowrap text-xs text-slate-400 dark:text-slate-500">
-                        · {linkedTask.ticketId}
+                        {linkedTask.ticketId}
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 truncate text-xs text-slate-400 dark:text-slate-500">
+                  <h2 className="mb-1 truncate font-serif text-xl font-semibold text-slate-900 dark:text-slate-100">
+                    {note.title || "Untitled note"}
+                  </h2>
+                  <p className="line-clamp-2 text-sm text-slate-500 dark:text-slate-400">
                     {note.body || "No content yet."}
                   </p>
                 </Link>
