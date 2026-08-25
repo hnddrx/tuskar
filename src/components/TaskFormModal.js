@@ -81,14 +81,14 @@ export default function TaskFormModal({ open, onClose, task = null }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-slate-900/40 sm:items-center sm:p-4">
-      <div className="flex h-full w-full flex-col overflow-y-auto bg-white shadow-xl sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4">
-          <h2 className="text-sm font-semibold text-slate-900">
+      <div className="flex h-full w-full flex-col overflow-y-auto bg-white shadow-xl dark:bg-slate-900 sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             {isEdit ? `Edit ${task.ticketId}` : "New task"}
           </h2>
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 transition-colors"
           >
             <X size={16} />
           </button>
@@ -96,7 +96,7 @@ export default function TaskFormModal({ open, onClose, task = null }) {
 
         <form onSubmit={handleSubmit} className="space-y-4 px-5 py-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
               Task name *
             </label>
             <input
@@ -104,31 +104,31 @@ export default function TaskFormModal({ open, onClose, task = null }) {
               required
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               placeholder="e.g. Bank Reconciliation"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 Ticket ID
               </label>
               <input
                 value={form.ticketId}
                 onChange={(e) => set("ticketId", e.target.value)}
                 placeholder="N/A"
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 Type
               </label>
               <select
                 value={form.type}
                 onChange={(e) => set("type", e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               >
                 {config.types.map((t) => (
                   <option key={t}>{t}</option>
@@ -138,13 +138,13 @@ export default function TaskFormModal({ open, onClose, task = null }) {
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
               Parent task (for subtasks)
             </label>
             <select
               value={form.parentId}
               onChange={(e) => set("parentId", e.target.value)}
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
             >
               <option value="">None</option>
               {parentOptions.map((t) => (
@@ -157,13 +157,13 @@ export default function TaskFormModal({ open, onClose, task = null }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 Status
               </label>
               <select
                 value={form.status}
                 onChange={(e) => set("status", e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               >
                 {config.statuses.map((s) => (
                   <option key={s}>{s}</option>
@@ -171,13 +171,13 @@ export default function TaskFormModal({ open, onClose, task = null }) {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 Priority
               </label>
               <select
                 value={form.priority}
                 onChange={(e) => set("priority", e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               >
                 {config.priorities.map((p) => (
                   <option key={p}>{p}</option>
@@ -185,13 +185,13 @@ export default function TaskFormModal({ open, onClose, task = null }) {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 Assignee
               </label>
               <select
                 value={form.assignee}
                 onChange={(e) => set("assignee", e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               >
                 <option value="">Unassigned</option>
                 {config.assignees.map((a) => (
@@ -203,29 +203,29 @@ export default function TaskFormModal({ open, onClose, task = null }) {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 Start date
               </label>
               <input
                 type="date"
                 value={form.startDate}
                 onChange={(e) => set("startDate", e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 Target date
               </label>
               <input
                 type="date"
                 value={form.targetDate}
                 onChange={(e) => set("targetDate", e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 Progress %
               </label>
               <input
@@ -234,59 +234,59 @@ export default function TaskFormModal({ open, onClose, task = null }) {
                 max={100}
                 value={form.progress}
                 onChange={(e) => set("progress", e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">
+            <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
               Description
             </label>
             <textarea
               rows={3}
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 GitHub branch
               </label>
               <input
                 value={form.githubBranch}
                 onChange={(e) => set("githubBranch", e.target.value)}
                 placeholder="N/A"
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500">
+              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 Jira link
               </label>
               <input
                 value={form.jiraLink}
                 onChange={(e) => set("jiraLink", e.target.value)}
                 placeholder="https://your-domain.atlassian.net/browse/..."
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100"
+              className="rounded-md px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 transition-colors"
             >
               {isEdit ? "Save changes" : "Create task"}
             </button>

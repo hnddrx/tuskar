@@ -15,7 +15,7 @@ import { generateTaskDoc, downloadMarkdown } from "@/lib/docGenerator";
 
 export default function TaskDetailPage() {
   return (
-    <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400">Loading…</div>}>
+    <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400 dark:text-slate-500">Loading…</div>}>
       <TaskDetailPageInner />
     </Suspense>
   );
@@ -37,8 +37,8 @@ function TaskDetailPageInner() {
   if (!task) {
     return (
       <div className="flex-1 p-8">
-        <p className="text-sm text-slate-500">Task not found.</p>
-        <Link href="/tasks" className="text-sm text-slate-900 underline">
+        <p className="text-sm text-slate-500 dark:text-slate-400">Task not found.</p>
+        <Link href="/tasks" className="text-sm text-slate-900 underline dark:text-slate-100">
           Back to task table
         </Link>
       </div>
@@ -109,7 +109,7 @@ function TaskDetailPageInner() {
           <InlineField
             value={effective("name")}
             onCommit={(v) => patchPending("name", v.trim() || "Untitled task")}
-            viewClassName="truncate text-lg font-semibold text-slate-900"
+            viewClassName="truncate text-lg font-semibold text-slate-900 dark:text-slate-100"
           />
         }
         actions={
@@ -118,13 +118,13 @@ function TaskDetailPageInner() {
               <>
                 <button
                   onClick={saveChanges}
-                  className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
+                  className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors dark:bg-slate-100 dark:text-slate-900"
                 >
                   <Save size={14} /> Save
                 </button>
                 <button
                   onClick={discardChanges}
-                  className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
                 >
                   <Undo2 size={14} /> Discard
                 </button>
@@ -132,7 +132,7 @@ function TaskDetailPageInner() {
             )}
             <button
               onClick={exportDoc}
-              className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
             >
               <FileDown size={14} /> Export doc
             </button>
@@ -172,8 +172,8 @@ function TaskDetailPageInner() {
       <div className="px-4 py-6 sm:px-8">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <h2 className="mb-2 text-sm font-semibold text-slate-800">
+            <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+              <h2 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                 Description
               </h2>
               <InlineField
@@ -181,20 +181,20 @@ function TaskDetailPageInner() {
                 value={effective("description") || ""}
                 onCommit={(v) => patchPending("description", v)}
                 placeholder="No description provided."
-                viewClassName="whitespace-pre-wrap text-sm leading-relaxed text-slate-600"
+                viewClassName="whitespace-pre-wrap text-sm leading-relaxed text-slate-600 dark:text-slate-400"
               />
             </section>
 
-            <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <h2 className="mb-3 text-sm font-semibold text-slate-800">
+            <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+              <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
                 Comments &amp; update history
               </h2>
               <CommentThread taskId={task.id} />
             </section>
 
             {subtasks.length > 0 && (
-              <section className="rounded-xl border border-slate-200 bg-white p-5">
-                <h2 className="mb-3 text-sm font-semibold text-slate-800">
+              <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+                <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   Subtasks ({subtasks.length})
                 </h2>
                 <div className="space-y-2">
@@ -202,13 +202,13 @@ function TaskDetailPageInner() {
                     <Link
                       key={s.id}
                       href={relatedTaskHref(s.id)}
-                      className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 hover:bg-slate-50"
+                      className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 hover:bg-slate-50 transition-colors dark:border-slate-800 dark:hover:bg-slate-800"
                     >
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="shrink-0 font-mono text-xs text-slate-400">
+                        <span className="shrink-0 font-mono text-xs text-slate-400 dark:text-slate-500">
                           {s.ticketId}
                         </span>
-                        <span className="truncate text-sm text-slate-700">
+                        <span className="truncate text-sm text-slate-700 dark:text-slate-300">
                           {s.name}
                         </span>
                       </div>
@@ -221,12 +221,12 @@ function TaskDetailPageInner() {
           </div>
 
           <div className="space-y-4">
-            <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <h2 className="mb-3 text-sm font-semibold text-slate-800">Details</h2>
+            <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+              <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">Details</h2>
               <dl className="space-y-3 text-sm">
                 <div>
-                  <dt className="text-xs text-slate-400">Assignee</dt>
-                  <dd className="mt-0.5 text-sm text-slate-700">
+                  <dt className="text-xs text-slate-400 dark:text-slate-500">Assignee</dt>
+                  <dd className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">
                     <InlineField
                       type="select"
                       value={effective("assignee") || "Unassigned"}
@@ -236,8 +236,8 @@ function TaskDetailPageInner() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-400">Start date</dt>
-                  <dd className="mt-0.5 text-sm text-slate-700">
+                  <dt className="text-xs text-slate-400 dark:text-slate-500">Start date</dt>
+                  <dd className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">
                     <InlineField
                       type="date"
                       value={effective("startDate") || ""}
@@ -246,8 +246,8 @@ function TaskDetailPageInner() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-400">Target date</dt>
-                  <dd className="mt-0.5 text-sm text-slate-700">
+                  <dt className="text-xs text-slate-400 dark:text-slate-500">Target date</dt>
+                  <dd className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">
                     <InlineField
                       type="date"
                       value={effective("targetDate") || ""}
@@ -256,7 +256,7 @@ function TaskDetailPageInner() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-400">Progress</dt>
+                  <dt className="text-xs text-slate-400 dark:text-slate-500">Progress</dt>
                   <dd className="mt-1">
                     <InlineField
                       type="number"
@@ -275,9 +275,9 @@ function TaskDetailPageInner() {
                 </div>
                 <Field label="Last update" value={task.lastUpdate || "—"} />
                 <div>
-                  <dt className="text-xs text-slate-400">GitHub branch</dt>
-                  <dd className="mt-1 flex items-center gap-1.5 text-sm text-slate-700">
-                    <GitBranch size={13} className="shrink-0 text-slate-400" />
+                  <dt className="text-xs text-slate-400 dark:text-slate-500">GitHub branch</dt>
+                  <dd className="mt-1 flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+                    <GitBranch size={13} className="shrink-0 text-slate-400 dark:text-slate-500" />
                     <div className="min-w-0 flex-1">
                       <InlineField
                         value={effective("githubBranch") === "N/A" ? "" : effective("githubBranch")}
@@ -289,7 +289,7 @@ function TaskDetailPageInner() {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-slate-400">Jira</dt>
+                  <dt className="text-xs text-slate-400 dark:text-slate-500">Jira</dt>
                   <dd className="mt-1 flex items-center gap-2 text-sm">
                     <div className="min-w-0 flex-1">
                       <InlineField
@@ -305,7 +305,7 @@ function TaskDetailPageInner() {
                         target="_blank"
                         rel="noreferrer"
                         title="Open in Jira"
-                        className="shrink-0 text-blue-600 hover:text-blue-700"
+                        className="shrink-0 text-blue-600 hover:text-blue-700 transition-colors"
                       >
                         <ExternalLink size={14} />
                       </a>
@@ -324,8 +324,8 @@ function TaskDetailPageInner() {
 function Field({ label, value }) {
   return (
     <div>
-      <dt className="text-xs text-slate-400">{label}</dt>
-      <dd className="mt-0.5 text-sm text-slate-700">{value}</dd>
+      <dt className="text-xs text-slate-400 dark:text-slate-500">{label}</dt>
+      <dd className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">{value}</dd>
     </div>
   );
 }

@@ -43,12 +43,12 @@ function NewNoteInner() {
   return (
     <>
       {saveError && (
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 pt-4 text-xs text-amber-800 sm:px-8">
-          <div className="flex flex-1 items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 pt-4 text-xs text-amber-800 dark:text-amber-300 sm:px-8">
+          <div className="flex flex-1 items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950">
             <span>Couldn&apos;t save: {saveError} — click Save to try again.</span>
             <button
               onClick={() => setSaveError(null)}
-              className="text-amber-500 hover:text-amber-700"
+              className="text-amber-500 transition-colors hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-200"
             >
               Dismiss
             </button>
@@ -71,7 +71,7 @@ function NewNoteInner() {
 
 export default function NewNotePage() {
   return (
-    <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400">Loading…</div>}>
+    <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400 dark:text-slate-500">Loading…</div>}>
       <NewNoteInner />
     </Suspense>
   );

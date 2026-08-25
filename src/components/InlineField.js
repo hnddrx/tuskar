@@ -41,7 +41,7 @@ export default function InlineField({
   }
 
   const inputBase =
-    "w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm focus:border-slate-400 focus:outline-none";
+    "w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:focus:border-slate-500 transition-colors";
 
   if (editing) {
     if (type === "select") {
@@ -98,8 +98,8 @@ export default function InlineField({
   }
 
   const viewBase = inline
-    ? "inline-flex items-center rounded-md hover:opacity-80"
-    : "block w-full rounded-md px-2 py-1 text-left hover:bg-slate-50";
+    ? "inline-flex items-center rounded-md hover:opacity-80 transition-colors"
+    : "block w-full rounded-md px-2 py-1 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors";
 
   return (
     <button
@@ -109,7 +109,7 @@ export default function InlineField({
     >
       {renderView
         ? renderView(value)
-        : value || <span className="text-slate-400">{placeholder}</span>}
+        : value || <span className="text-slate-400 dark:text-slate-500">{placeholder}</span>}
     </button>
   );
 }

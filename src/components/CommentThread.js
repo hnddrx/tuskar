@@ -42,17 +42,17 @@ export default function CommentThread({ taskId }) {
           onChange={(e) => setText(e.target.value)}
           rows={2}
           placeholder="Log an update or comment…"
-          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+          className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
         />
         <div className="flex items-center justify-between">
           <input
             value={author}
             onChange={(e) => setAuthor(e.target.value)}
-            className="w-32 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 focus:border-slate-400 focus:outline-none"
+            className="w-32 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:text-slate-400 dark:focus:border-slate-500 transition-colors"
           />
           <button
             type="submit"
-            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 transition-colors"
           >
             <Send size={13} /> Add update
           </button>
@@ -61,35 +61,35 @@ export default function CommentThread({ taskId }) {
 
       <div className="space-y-3">
         {thread.length === 0 && (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-400 dark:text-slate-500">
             No comments or updates logged yet.
           </p>
         )}
         {thread.map((c) => (
           <div
             key={c.id}
-            className="group flex gap-3 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5"
+            className="group flex gap-3 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-800/60"
           >
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600 dark:text-slate-400">
               {c.author?.[0]?.toUpperCase() || "?"}
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-slate-800">
+                <span className="text-sm font-medium text-slate-800 dark:text-slate-200">
                   {c.author}
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-slate-400 dark:text-slate-500">
                   {formatTs(c.created)}
                 </span>
                 <SyncBadge source={c.syncSource} />
               </div>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600 dark:text-slate-400">
                 {c.text}
               </p>
             </div>
             <button
               onClick={() => deleteComment(c.id, taskId)}
-              className="h-fit rounded p-1 text-slate-300 opacity-0 hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
+              className="h-fit rounded p-1 text-slate-300 opacity-0 hover:bg-red-50 hover:text-red-500 group-hover:opacity-100 dark:text-slate-600 transition-colors"
             >
               <Trash2 size={13} />
             </button>

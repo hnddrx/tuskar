@@ -60,8 +60,8 @@ export function SyncBadge({ source }) {
     <span
       className={`inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ${
         isJira
-          ? "bg-sky-50 text-sky-700 border border-sky-200"
-          : "bg-neutral-50 text-neutral-500 border border-neutral-200"
+          ? "bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-900"
+          : "bg-neutral-50 text-neutral-500 border border-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:border-neutral-700"
       }`}
     >
       {isJira ? "Jira" : "Manual"}

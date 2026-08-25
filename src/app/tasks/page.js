@@ -60,7 +60,7 @@ const DEFAULT_VISIBLE_KEYS = [
 
 const CELL_DEFS = {
   ticketId: {
-    className: "whitespace-nowrap px-4 py-2.5 font-mono text-xs text-slate-500",
+    className: "whitespace-nowrap px-4 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400",
     render: (t) => t.ticketId,
   },
   name: {
@@ -69,13 +69,13 @@ const CELL_DEFS = {
       <>
         <Link
           href={taskHref(t.id)}
-          className="block truncate font-medium text-slate-800 hover:underline"
+          className="block truncate font-medium text-slate-800 hover:underline transition-colors dark:text-slate-200"
           title={t.name}
         >
           {t.name}
         </Link>
         {parent && (
-          <span className="text-xs text-slate-400">↳ subtask of {parent.ticketId}</span>
+          <span className="text-xs text-slate-400 dark:text-slate-500">↳ subtask of {parent.ticketId}</span>
         )}
       </>
     ),
@@ -97,15 +97,15 @@ const CELL_DEFS = {
     render: (t) => <PriorityBadge priority={t.priority} />,
   },
   assignee: {
-    className: "whitespace-nowrap px-4 py-2.5 text-slate-600",
+    className: "whitespace-nowrap px-4 py-2.5 text-slate-600 dark:text-slate-400",
     render: (t) => t.assignee,
   },
   startDate: {
-    className: "whitespace-nowrap px-4 py-2.5 text-slate-500",
+    className: "whitespace-nowrap px-4 py-2.5 text-slate-500 dark:text-slate-400",
     render: (t) => t.startDate || "—",
   },
   targetDate: {
-    className: "whitespace-nowrap px-4 py-2.5 text-slate-500",
+    className: "whitespace-nowrap px-4 py-2.5 text-slate-500 dark:text-slate-400",
     render: (t) => t.targetDate || "—",
   },
   progress: {
@@ -113,7 +113,7 @@ const CELL_DEFS = {
     render: (t) => <ProgressBar value={t.progress} className="w-28" />,
   },
   commentCount: {
-    className: "px-4 py-2.5 text-center text-slate-500",
+    className: "px-4 py-2.5 text-center text-slate-500 dark:text-slate-400",
     render: (t) => t.commentCount || 0,
   },
   syncSource: {
@@ -121,11 +121,11 @@ const CELL_DEFS = {
     render: (t) => <SyncBadge source={t.syncSource} />,
   },
   createdAt: {
-    className: "whitespace-nowrap px-4 py-2.5 text-slate-500",
+    className: "whitespace-nowrap px-4 py-2.5 text-slate-500 dark:text-slate-400",
     render: (t) => (t.createdAt ? t.createdAt.slice(0, 10) : "—"),
   },
   githubBranch: {
-    className: "whitespace-nowrap px-4 py-2.5 font-mono text-xs text-slate-500",
+    className: "whitespace-nowrap px-4 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400",
     render: (t) => (t.githubBranch && t.githubBranch !== "N/A" ? t.githubBranch : "—"),
   },
   jiraLink: {
@@ -136,12 +136,12 @@ const CELL_DEFS = {
           href={t.jiraLink}
           target="_blank"
           rel="noreferrer"
-          className="text-xs text-blue-600 hover:underline"
+          className="text-xs text-blue-600 hover:underline transition-colors"
         >
           Open ↗
         </a>
       ) : (
-        <span className="text-slate-400">—</span>
+        <span className="text-slate-400 dark:text-slate-500">—</span>
       ),
   },
 };
@@ -211,7 +211,7 @@ function compareValues(a, b, key) {
 
 export default function TasksPage() {
   return (
-    <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400">Loading…</div>}>
+    <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400 dark:text-slate-500">Loading…</div>}>
       <TasksPageInner />
     </Suspense>
   );
@@ -379,7 +379,7 @@ function TasksPageInner() {
         actions={
           <button
             onClick={openNew}
-            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors dark:bg-slate-100 dark:text-slate-900"
           >
             <Plus size={16} /> New task
           </button>
@@ -390,18 +390,18 @@ function TasksPageInner() {
           <div className="relative min-w-[200px] flex-1 sm:flex-none sm:w-72">
             <Search
               size={15}
-              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
             />
             <input
               value={query}
               onChange={(e) => updateQuery(e.target.value)}
               placeholder="Search tasks, comments, people…"
-              className="w-full rounded-md border border-slate-200 bg-white py-1.5 pl-8 pr-7 text-sm focus:border-slate-400 focus:outline-none"
+              className="w-full rounded-md border border-slate-200 bg-white py-1.5 pl-8 pr-7 text-sm focus:border-slate-400 focus:outline-none transition-colors dark:border-slate-800 dark:bg-slate-900 dark:focus:border-slate-500"
             />
             {hasActiveQuery && (
               <button
                 onClick={() => updateQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors dark:text-slate-500"
               >
                 <X size={14} />
               </button>
@@ -419,7 +419,7 @@ function TasksPageInner() {
           {(activeFilterCount > 0 || hasActiveQuery) && (
             <button
               onClick={resetAll}
-              className="text-xs font-medium text-slate-500 hover:text-slate-800"
+              className="text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors dark:text-slate-400 dark:hover:text-slate-100"
             >
               Reset all
             </button>
@@ -434,7 +434,7 @@ function TasksPageInner() {
             <select
               value={pageSize}
               onChange={(e) => pushState({ pageSize: Number(e.target.value), page: 1 })}
-              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-slate-400 focus:outline-none"
+              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-600 focus:border-slate-400 focus:outline-none transition-colors dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:focus:border-slate-500"
             >
               {PAGE_SIZES.map((n) => (
                 <option key={n} value={n}>
@@ -448,15 +448,15 @@ function TasksPageInner() {
 
       <div className="px-4 py-6 sm:px-8">
         {/* Desktop / tablet table */}
-        <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white md:block">
+        <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white md:block dark:border-slate-800 dark:bg-slate-900">
           <table className="w-full min-w-[1100px] text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+              <tr className="border-b border-slate-100 text-left text-xs font-medium uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:text-slate-500">
                 {columns.map((col) => (
                   <th key={col.key} className="px-4 py-3">
                     <button
                       onClick={() => toggleSort(col.key)}
-                      className="flex items-center gap-1 hover:text-slate-700"
+                      className="flex items-center gap-1 hover:text-slate-700 transition-colors"
                     >
                       {col.label}
                       {sort.key === col.key ? (
@@ -480,7 +480,7 @@ function TasksPageInner() {
                 return (
                   <tr
                     key={t.id}
-                    className="group border-b border-slate-50 last:border-0 hover:bg-slate-50"
+                    className="group border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors dark:hover:bg-slate-800"
                   >
                     {columns.map((col) => (
                       <td key={col.key} className={CELL_DEFS[col.key].className}>
@@ -491,7 +491,7 @@ function TasksPageInner() {
                       <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100">
                         <button
                           onClick={() => openEdit(t)}
-                          className="rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
+                          className="rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 transition-colors dark:text-slate-400 dark:hover:bg-slate-800"
                         >
                           Edit
                         </button>
@@ -499,7 +499,7 @@ function TasksPageInner() {
                           onClick={() => {
                             if (confirm(`Delete "${t.name}"?`)) deleteTask(t.id);
                           }}
-                          className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                          className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors dark:text-slate-500"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -512,7 +512,7 @@ function TasksPageInner() {
                 <tr>
                   <td
                     colSpan={columns.length + 1}
-                    className="px-4 py-10 text-center text-sm text-slate-400"
+                    className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500"
                   >
                     No tasks match your search and filters.
                   </td>
@@ -530,17 +530,17 @@ function TasksPageInner() {
               <Link
                 key={t.id}
                 href={taskHref(t.id)}
-                className="block rounded-xl border border-slate-200 bg-white p-3.5"
+                className="block rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-900"
               >
                 <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <span className="font-mono text-[11px] text-slate-400">
+                  <span className="font-mono text-[11px] text-slate-400 dark:text-slate-500">
                     {t.ticketId}
                   </span>
                   <SyncBadge source={t.syncSource} />
                 </div>
-                <p className="mb-1 text-sm font-medium text-slate-800">{t.name}</p>
+                <p className="mb-1 text-sm font-medium text-slate-800 dark:text-slate-200">{t.name}</p>
                 {parent && (
-                  <p className="mb-1.5 text-xs text-slate-400">
+                  <p className="mb-1.5 text-xs text-slate-400 dark:text-slate-500">
                     ↳ subtask of {parent.ticketId}
                   </p>
                 )}
@@ -550,7 +550,7 @@ function TasksPageInner() {
                   <PriorityBadge priority={t.priority} />
                 </div>
                 <ProgressBar value={t.progress} className="mb-2" />
-                <div className="flex items-center justify-between text-xs text-slate-500">
+                <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
                   <span>{t.assignee}</span>
                   <span>{t.targetDate || "No target date"}</span>
                 </div>
@@ -558,7 +558,7 @@ function TasksPageInner() {
             );
           })}
           {pageItems.length === 0 && (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-400">
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center text-sm text-slate-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-500">
               No tasks match your search and filters.
             </div>
           )}
@@ -566,7 +566,7 @@ function TasksPageInner() {
 
         {/* Pagination */}
         {sorted.length > 0 && (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500 dark:text-slate-400">
             <p>
               Showing {(safePage - 1) * pageSize + 1}–
               {Math.min(safePage * pageSize, sorted.length)} of {sorted.length}
@@ -575,7 +575,7 @@ function TasksPageInner() {
               <button
                 onClick={() => pushState({ page: Math.max(1, safePage - 1) })}
                 disabled={safePage <= 1}
-                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-40"
+                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900"
               >
                 Previous
               </button>
@@ -585,7 +585,7 @@ function TasksPageInner() {
               <button
                 onClick={() => pushState({ page: Math.min(totalPages, safePage + 1) })}
                 disabled={safePage >= totalPages}
-                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-40"
+                className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900"
               >
                 Next
               </button>

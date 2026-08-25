@@ -34,7 +34,7 @@ export default function BoardPage() {
         actions={
           <button
             onClick={() => setModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800"
+            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors dark:bg-slate-100 dark:text-slate-900"
           >
             <Plus size={16} /> New task
           </button>
@@ -51,13 +51,13 @@ export default function BoardPage() {
                 key={status}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => onDrop(status)}
-                className="w-64 shrink-0 rounded-xl bg-slate-100/70 p-3 sm:w-72"
+                className="w-64 shrink-0 rounded-xl bg-slate-100/70 p-3 sm:w-72 dark:bg-slate-800/60"
               >
                 <div className="mb-3 flex items-center justify-between px-1">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     {status}
                   </h3>
-                  <span className="rounded-full bg-white px-1.5 py-0.5 text-xs text-slate-400">
+                  <span className="rounded-full bg-white px-1.5 py-0.5 text-xs text-slate-400 dark:bg-slate-900 dark:text-slate-500">
                     {items.length}
                   </span>
                 </div>
@@ -68,22 +68,22 @@ export default function BoardPage() {
                       href={`/tasks/${t.id}?${BOARD_FROM}`}
                       draggable
                       onDragStart={() => setDragId(t.id)}
-                      className={`block cursor-grab rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:border-slate-300 active:cursor-grabbing ${
+                      className={`block cursor-grab rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:border-slate-300 active:cursor-grabbing transition-colors dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600 ${
                         DONE_STATUSES.includes(status) ? "opacity-70" : ""
                       }`}
                     >
                       <div className="mb-1.5 flex items-center justify-between">
-                        <span className="font-mono text-[11px] text-slate-400">
+                        <span className="font-mono text-[11px] text-slate-400 dark:text-slate-500">
                           {t.ticketId}
                         </span>
                         <PriorityBadge priority={t.priority} />
                       </div>
-                      <p className="mb-2 text-sm font-medium leading-snug text-slate-800">
+                      <p className="mb-2 text-sm font-medium leading-snug text-slate-800 dark:text-slate-200">
                         {t.name}
                       </p>
                       <ProgressBar value={t.progress} className="mb-2" />
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
                           {t.assignee}
                         </span>
                         <SyncBadge source={t.syncSource} />
@@ -91,7 +91,7 @@ export default function BoardPage() {
                     </Link>
                   ))}
                   {items.length === 0 && (
-                    <p className="px-1 py-4 text-center text-xs text-slate-400">
+                    <p className="px-1 py-4 text-center text-xs text-slate-400 dark:text-slate-500">
                       Nothing here
                     </p>
                   )}

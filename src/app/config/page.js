@@ -23,7 +23,7 @@ export default function ConfigPage() {
                 resetToSeed();
               }
             }}
-            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50"
+            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
           >
             Reset to imported data
           </button>

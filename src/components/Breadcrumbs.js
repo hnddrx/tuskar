@@ -6,12 +6,12 @@ import Link from "next/link";
 // no `href` since it's the current page and renders as plain text.
 export default function Breadcrumbs({ items }) {
   return (
-    <nav className="mb-2 mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+    <nav className="mb-2 mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
       {items.map((item, i) => (
         <span key={i} className="flex items-center gap-1.5">
-          {i > 0 && <span className="text-slate-300">/</span>}
+          {i > 0 && <span className="text-slate-300 dark:text-slate-600">/</span>}
           {item.href ? (
-            <Link href={item.href} className="hover:text-slate-800 hover:underline">
+            <Link href={item.href} className="hover:text-slate-800 hover:underline dark:hover:text-slate-100 transition-colors">
               {item.label}
             </Link>
           ) : (
