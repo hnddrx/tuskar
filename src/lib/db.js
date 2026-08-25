@@ -33,6 +33,21 @@ export function rowToTask(row) {
   };
 }
 
+export function rowToNote(row) {
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    linkedTaskId: row.linked_task_id,
+    attendees: row.attendees,
+    agenda: row.agenda,
+    actionItems: row.action_items,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 export function rowToComment(row) {
   return {
     id: row.id,

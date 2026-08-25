@@ -72,7 +72,24 @@ async function migrate() {
     )
   `;
 
-  console.log("Migration complete: tasks, comments, board_config, jira_config ready.");
+  await sql`
+    create table if not exists notes (
+      id text primary key,
+      user_id text not null,
+      type text not null,
+      title text not null,
+      body text not null default '',
+      linked_task_id text,
+      attendees jsonb not null default '[]',
+      agenda jsonb not null default '[]',
+      action_items jsonb not null default '[]',
+      created_at text not null,
+      updated_at text not null
+    )
+  `;
+  await sql`create index if not exists notes_user_id_idx on notes (user_id)`;
+
+  console.log("Migration complete: tasks, comments, board_config, jira_config, notes ready.");
 }
 
 migrate().catch((err) => {
