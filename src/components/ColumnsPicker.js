@@ -41,7 +41,7 @@ export default function ColumnsPicker({ columns, visibleKeys, onChange }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-800 dark:bg-slate-900">
+        <div className="absolute right-0 z-40 mt-2 w-56 rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-2 shadow-lg dark:border-slate-800 dark:bg-slate-900">
           <p className="px-2 py-1 text-xs font-semibold text-slate-400 dark:text-slate-500">
             Show columns
           </p>

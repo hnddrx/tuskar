@@ -123,80 +123,80 @@ export default function NoteEditor({
         </div>
       </div>
 
-      <input
-        value={effective("title")}
-        onChange={(e) => patchPending("title", e.target.value)}
-        placeholder="Note title"
-        className="mb-4 w-full rounded-md border border-slate-200 px-3 py-2 text-lg font-semibold transition-colors focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500"
-      />
+      <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+        <input
+          value={effective("title")}
+          onChange={(e) => patchPending("title", e.target.value)}
+          placeholder="Note title"
+          className="mb-4 w-full border-0 border-b border-slate-200 px-0 pb-3 text-xl font-semibold text-slate-900 transition-colors placeholder:font-normal placeholder:text-slate-300 focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:text-slate-100 dark:placeholder:text-slate-700 dark:focus:border-slate-500"
+        />
 
-      <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-        Link to task (optional)
-      </label>
-      <select
-        value={effective("linkedTaskId") || ""}
-        onChange={(e) => patchPending("linkedTaskId", e.target.value || null)}
-        className="mb-4 w-full rounded-md border border-slate-200 px-2.5 py-1.5 text-sm transition-colors focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500"
-      >
-        <option value="">No linked task</option>
-        {tasks.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.ticketId} — {t.name}
-          </option>
-        ))}
-      </select>
+        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
+          Link to task (optional)
+        </label>
+        <select
+          value={effective("linkedTaskId") || ""}
+          onChange={(e) => patchPending("linkedTaskId", e.target.value || null)}
+          className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm transition-colors focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:bg-slate-800/60 dark:focus:border-slate-500"
+        >
+          <option value="">No linked task</option>
+          {tasks.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.ticketId} — {t.name}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {isMom && (
-        <>
-          <div className="mb-4">
-            <ConfigListEditor
-              title="Attendees"
-              items={effective("attendees")}
-              onChange={(v) => patchPending("attendees", v)}
-            />
-          </div>
-          <div className="mb-4">
-            <ConfigListEditor
-              title="Agenda"
-              items={effective("agenda")}
-              onChange={(v) => patchPending("agenda", v)}
-            />
-          </div>
-        </>
+        <div className="mb-4 grid gap-4 sm:grid-cols-2">
+          <ConfigListEditor
+            title="Attendees"
+            items={effective("attendees")}
+            onChange={(v) => patchPending("attendees", v)}
+          />
+          <ConfigListEditor
+            title="Agenda"
+            items={effective("agenda")}
+            onChange={(v) => patchPending("agenda", v)}
+          />
+        </div>
       )}
 
-      <div className="mb-1 flex items-center justify-between">
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
-          {isMom ? "Discussion" : "Note"}
-        </label>
-        <button
-          type="button"
-          onClick={toggleVoice}
-          disabled={!voiceSupported}
-          title={
-            voiceSupported
-              ? voiceListening
-                ? "Stop dictation"
-                : "Dictate into this field"
-              : "Voice input isn't supported in this browser"
-          }
-          className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-            voiceListening
-              ? "animate-pulse bg-red-50 text-red-600"
-              : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-          }`}
-        >
-          {voiceListening ? <MicOff size={13} /> : <Mic size={13} />}
-          {voiceListening ? "Listening…" : "Dictate"}
-        </button>
+      <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+        <div className="mb-2 flex items-center justify-between">
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+            {isMom ? "Discussion" : "Note"}
+          </label>
+          <button
+            type="button"
+            onClick={toggleVoice}
+            disabled={!voiceSupported}
+            title={
+              voiceSupported
+                ? voiceListening
+                  ? "Stop dictation"
+                  : "Dictate into this field"
+                : "Voice input isn't supported in this browser"
+            }
+            className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              voiceListening
+                ? "animate-pulse bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400"
+                : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+            }`}
+          >
+            {voiceListening ? <MicOff size={13} /> : <Mic size={13} />}
+            {voiceListening ? "Listening…" : "Dictate"}
+          </button>
+        </div>
+        <textarea
+          value={effective("body")}
+          onChange={(e) => patchPending("body", e.target.value)}
+          rows={10}
+          placeholder={isMom ? "What was discussed…" : "Write your note…"}
+          className="w-full border-0 px-0 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-300 dark:placeholder:text-slate-600"
+        />
       </div>
-      <textarea
-        value={effective("body")}
-        onChange={(e) => patchPending("body", e.target.value)}
-        rows={10}
-        placeholder={isMom ? "What was discussed…" : "Write your note…"}
-        className="mb-4 w-full rounded-md border border-slate-200 px-3 py-2 text-sm transition-colors focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500"
-      />
 
       {isMom && (
         <ActionItemsEditor
@@ -230,7 +230,7 @@ function ActionItemsEditor({ items, onChange, onConvert, tasks, canConvert }) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
       <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Action items</h2>
       <div className="mb-3 mt-3 space-y-1.5">
         {items.map((item) => {

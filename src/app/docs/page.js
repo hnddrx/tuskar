@@ -50,7 +50,7 @@ export default function DocsPage() {
 
       <div className="px-4 py-6 sm:px-8">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-3 lg:order-1 dark:border-slate-800 dark:bg-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-3 lg:order-1 dark:border-slate-800 dark:bg-slate-900">
             <p className="mb-2 px-2 text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
               Tasks
             </p>
@@ -74,7 +74,7 @@ export default function DocsPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5 lg:order-2 lg:col-span-2 dark:border-slate-800 dark:bg-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-5 lg:order-2 lg:col-span-2 dark:border-slate-800 dark:bg-slate-900">
             {previewTask ? (
               <>
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

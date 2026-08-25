@@ -448,7 +448,7 @@ function TasksPageInner() {
 
       <div className="px-4 py-6 sm:px-8">
         {/* Desktop / tablet table */}
-        <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white md:block dark:border-slate-800 dark:bg-slate-900">
+        <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none md:block dark:border-slate-800 dark:bg-slate-900">
           <table className="w-full min-w-[1100px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs font-medium uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:text-slate-500">
@@ -530,7 +530,7 @@ function TasksPageInner() {
               <Link
                 key={t.id}
                 href={taskHref(t.id)}
-                className="block rounded-xl border border-slate-200 bg-white p-3.5 dark:border-slate-800 dark:bg-slate-900"
+                className="block rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-3.5 dark:border-slate-800 dark:bg-slate-900"
               >
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <span className="font-mono text-[11px] text-slate-400 dark:text-slate-500">

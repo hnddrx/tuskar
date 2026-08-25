@@ -44,7 +44,7 @@ export default function OverviewPage() {
           {stats.map((s) => (
             <div
               key={s.label}
-              className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+              className="rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-4 dark:border-slate-800 dark:bg-slate-900"
             >
               <p className="text-xs text-slate-400 dark:text-slate-500">{s.label}</p>
               <p
@@ -59,7 +59,7 @@ export default function OverviewPage() {
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-          <div className="rounded-xl border border-slate-200 bg-white p-5 lg:col-span-2 dark:border-slate-800 dark:bg-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-5 lg:col-span-2 dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                 Recently updated
@@ -93,7 +93,7 @@ export default function OverviewPage() {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-5 dark:border-slate-800 dark:bg-slate-900">
               <h2 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                 Jira Import
               </h2>
@@ -109,7 +109,7 @@ export default function OverviewPage() {
                 Set up / run import →
               </Link>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-5 dark:border-slate-800 dark:bg-slate-900">
               <h2 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                 Documentation
               </h2>

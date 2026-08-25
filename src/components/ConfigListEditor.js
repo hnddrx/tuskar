@@ -18,7 +18,7 @@ export default function ConfigListEditor({ title, hint, items, onChange }) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
       <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">{title}</h2>
       {hint && <p className="mb-3 mt-0.5 text-xs text-slate-400 dark:text-slate-500">{hint}</p>}
       <div className="mb-3 mt-3 space-y-1.5">

@@ -18,6 +18,7 @@ import {
 import { UserButton } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 import { DONE_STATUSES } from "@/lib/constants";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
@@ -137,12 +138,13 @@ export default function AppShell({ children }) {
         >
           <Menu size={20} />
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-1 items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-900 text-xs font-bold text-white dark:bg-slate-100 dark:text-slate-900">
             T
           </div>
           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Taskar</span>
         </div>
+        <ThemeToggle />
       </div>
 
       {/* Mobile drawer */}
@@ -166,6 +168,9 @@ export default function AppShell({ children }) {
                 <X size={18} />
               </button>
             </div>
+            <div className="px-5 pb-3">
+              <ThemeToggle />
+            </div>
             <NavLinks pathname={pathname} onNavigate={() => setDrawerOpen(false)} />
             <OpenCount hydrated={hydrated} count={openCount} />
           </div>
@@ -177,6 +182,9 @@ export default function AppShell({ children }) {
         <div className="flex items-center justify-between pr-4">
           <Brand />
           <UserButton />
+        </div>
+        <div className="px-5 pb-3">
+          <ThemeToggle />
         </div>
         <NavLinks pathname={pathname} />
         <OpenCount hydrated={hydrated} count={openCount} />

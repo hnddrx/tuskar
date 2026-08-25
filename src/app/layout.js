@@ -2,6 +2,7 @@ import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { TaskProvider } from "@/context/TaskContext";
 import AppShell from "@/components/AppShell";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 export const metadata = {
   title: "Taskar — Personal Task Tracker",
@@ -12,6 +13,9 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className="h-full antialiased">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="min-h-full">
         <ClerkProvider>
           <TaskProvider>

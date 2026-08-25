@@ -172,7 +172,7 @@ function TaskDetailPageInner() {
       <div className="px-4 py-6 sm:px-8">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
-            <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <section className="rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-5 dark:border-slate-800 dark:bg-slate-900">
               <h2 className="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-200">
                 Description
               </h2>
@@ -185,7 +185,7 @@ function TaskDetailPageInner() {
               />
             </section>
 
-            <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <section className="rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-5 dark:border-slate-800 dark:bg-slate-900">
               <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
                 Comments &amp; update history
               </h2>
@@ -193,7 +193,7 @@ function TaskDetailPageInner() {
             </section>
 
             {subtasks.length > 0 && (
-              <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+              <section className="rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-5 dark:border-slate-800 dark:bg-slate-900">
                 <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
                   Subtasks ({subtasks.length})
                 </h2>
@@ -221,7 +221,7 @@ function TaskDetailPageInner() {
           </div>
 
           <div className="space-y-4">
-            <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <section className="rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-5 dark:border-slate-800 dark:bg-slate-900">
               <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">Details</h2>
               <dl className="space-y-3 text-sm">
                 <div>

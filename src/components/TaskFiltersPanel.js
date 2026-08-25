@@ -71,7 +71,7 @@ export default function TaskFiltersPanel({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-40 mt-2 max-h-[75vh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-lg dark:border-slate-800 dark:bg-slate-900">
+        <div className="absolute right-0 z-40 mt-2 max-h-[75vh] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-4 shadow-lg dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-3 flex items-center justify-between">
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Filters</p>
             <button

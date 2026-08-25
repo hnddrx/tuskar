@@ -210,7 +210,7 @@ export default function JiraPage() {
         </div>
 
         {/* Connection settings */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <section className="rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
               <ShieldCheck size={15} /> Connection settings
@@ -371,7 +371,7 @@ export default function JiraPage() {
         </section>
 
         {/* Import */}
-        <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+        <section className="rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-1 flex items-center justify-between">
             <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-200">
               <ArrowDownToLine size={15} /> Import from Jira
