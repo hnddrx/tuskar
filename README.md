@@ -13,13 +13,14 @@ same subtask/comment structure, plus:
 - **Auto-generated User Guide** — a Playwright script walks the real app and captures screenshots, assembling `/guide` and `USER_GUIDE.md` for you
 - **Jira Import** — one-way pull (Jira → Taskar) configured entirely from the app's UI (no `.env` editing required), matching the "Jira Sync Setup" sheet's design so nothing you do here can accidentally change Jira
 
-Everything — tasks, comments, configuration — lives in your browser
-(`localStorage`); there's no database yet. Jira credentials are the one
-exception: they're saved server-side in an encrypted, HttpOnly cookie (see
+Everything — tasks, comments, configuration, and your Jira connection —
+is saved to your account (Clerk sign-in, Postgres storage), so it follows
+you to any device or browser you sign in on. Jira credentials in
+particular are additionally encrypted at rest (see
 [Jira Import setup](#jira-import-setup) below) so the API token never
 reaches page JavaScript. It's a Next.js app, so it deploys straight to
-Vercel; the app is seeded with the tasks from your original spreadsheet on
-first load.
+Vercel; each new account is seeded with the tasks from your original
+spreadsheet on first login.
 
 ## Running locally
 
@@ -34,15 +35,19 @@ Open http://localhost:3000.
 
 ```
 src/
+  proxy.js        Clerk middleware — gates every route behind sign-in
   app/            Pages (App Router) — one folder per route
+    api/state/    Server-side task/comment/config routes, backed by Postgres
     api/jira/     Server-side Jira routes: config, test-connection, import
+    sign-in/      sign-up/   Clerk's hosted auth pages
   components/     Shared UI (PageHeader, task form, filters panel, comment thread, badges…)
-  context/        TaskContext — task/comment/config state, persisted to localStorage
-  lib/            docGenerator.js (Auto Docs), jira.js (Jira REST client),
-                   jiraCredentials.js + serverCrypto.js (encrypted cookie-based credential store)
-  data/           seed.json — your original spreadsheet, imported once
+  context/        TaskContext — task/comment/config state, persisted via /api/state, backed by Postgres
+  lib/            db.js (Neon Postgres client), docGenerator.js (Auto Docs), jira.js (Jira REST client),
+                   jiraCredentials.js + serverCrypto.js (encrypted Postgres-backed credential store)
+  data/           seed.json — your original spreadsheet, imported once per account
 scripts/
   generate-guide.mjs   Regenerates the screenshots + /guide + USER_GUIDE.md
+  db-migrate.mjs       Creates the Postgres tables (npm run db:migrate)
 ```
 
 ## Jira Import setup
@@ -161,17 +166,16 @@ and the Board scrolls horizontally like any Kanban board. Board and Task
 Table also get a floating "+" button on small screens as a second way to
 reach "New task" without scrolling.
 
-## About data storage (and adding a real database later)
+## About data storage
 
-Task/comment/configuration data lives in `localStorage` via `TaskContext`
-(`src/context/TaskContext.js`), by design: it needed to run on Vercel today
-without picking a database. That means your task data is per-browser and
-won't follow you to another device, and clearing browser data clears your
-tasks. (Jira credentials are the exception — see above; they live
-server-side in an encrypted cookie, not localStorage.)
+Task/comment/configuration data lives in Postgres (Neon, via Vercel
+Marketplace), scoped per Clerk account, so it follows you to any device or
+browser you sign in on. Jira credentials live in the same database (still
+encrypted at rest — see `src/lib/serverCrypto.js`), also per-account. See
+[docs/superpowers/specs/2026-08-25-cloud-sync-design.md](docs/superpowers/specs/2026-08-25-cloud-sync-design.md)
+for the full design.
 
-When you're ready for a database, the migration is contained: swap the
-`localStorage` read/writes in `TaskContext.js` for calls to new API routes
-backed by whatever you choose (Vercel Postgres, Supabase, Turso, etc.) — the
-rest of the app (every page and component) only talks to `useTasks()`, so
-it doesn't need to change.
+The first time a new account signs in on a browser that already has
+pre-cloud-sync `localStorage` data, Taskar offers a one-time import of that
+data into the account (see `TaskContext.js`) — after that, `localStorage`
+is no longer read as a source of truth.
