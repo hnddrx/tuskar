@@ -1,0 +1,69 @@
+"use client";
+
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useTasks } from "@/context/TaskContext";
+import { newId, nowIso } from "@/lib/id";
+import NoteEditor from "@/components/NoteEditor";
+
+function NewNoteInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { tasks } = useTasks();
+  const [saveError, setSaveError] = useState(null);
+  const type = searchParams.get("type") === "mom" ? "mom" : "freeform";
+
+  const draft = {
+    id: newId("note"),
+    type,
+    title: "",
+    body: "",
+    linkedTaskId: null,
+    attendees: [],
+    agenda: [],
+    actionItems: [],
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  };
+
+  async function handleSave(record) {
+    try {
+      const res = await fetch("/api/notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(record),
+      });
+      if (!res.ok) throw new Error(`Failed to save (${res.status})`);
+      router.push(`/notes/${record.id}`);
+    } catch (err) {
+      setSaveError(err.message || "Failed to save");
+    }
+  }
+
+  return (
+    <>
+      {saveError && (
+        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 pt-4 text-xs text-amber-800 sm:px-8">
+          <div className="flex flex-1 items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+            <span>Couldn&apos;t save: {saveError} — click Save to try again.</span>
+            <button
+              onClick={() => setSaveError(null)}
+              className="text-amber-500 hover:text-amber-700"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+      <NoteEditor note={draft} mode="create" tasks={tasks} onSave={handleSave} />
+    </>
+  );
+}
+
+export default function NewNotePage() {
+  return (
+    <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400">Loading…</div>}>
+      <NewNoteInner />
+    </Suspense>
+  );
+}
