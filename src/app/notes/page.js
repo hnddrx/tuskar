@@ -6,6 +6,7 @@ import { Plus, Search, Download } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
 import PageHeader from "@/components/PageHeader";
 import { NoteTypeBadge } from "@/components/Badge";
+import NoteTypePickerModal from "@/components/NoteTypePickerModal";
 import { generateNotesCompilationDoc } from "@/lib/noteDocGenerator";
 import { downloadMarkdown } from "@/lib/docGenerator";
 
@@ -21,6 +22,7 @@ export default function NotesPage() {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,20 +66,15 @@ export default function NotesPage() {
             >
               <Download size={14} /> Compile all notes
             </button>
-            <Link
-              href="/notes/new?type=freeform"
-              className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
-              <Plus size={16} /> New note
-            </Link>
-            <Link
-              href="/notes/new?type=mom"
+            <button
+              onClick={() => setPickerOpen(true)}
               className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800"
             >
-              <Plus size={16} /> New MOM
-            </Link>
+              <Plus size={16} /> New note
+            </button>
           </>
         }
+        mobileFab={{ onClick: () => setPickerOpen(true), label: "New note" }}
       >
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <div className="relative">
@@ -147,6 +144,8 @@ export default function NotesPage() {
           </div>
         )}
       </div>
+
+      <NoteTypePickerModal open={pickerOpen} onClose={() => setPickerOpen(false)} />
     </div>
   );
 }

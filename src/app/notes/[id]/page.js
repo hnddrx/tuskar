@@ -106,6 +106,10 @@ export default function NoteDetailPage() {
         onSave={savePatch}
         onDelete={handleDelete}
         onConvertActionItem={handleConvertActionItem}
+        breadcrumbs={[
+          { label: "Notes", href: "/notes" },
+          { label: note.title || "Untitled note" },
+        ]}
       />
     </>
   );

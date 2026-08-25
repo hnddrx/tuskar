@@ -55,7 +55,16 @@ function NewNoteInner() {
           </div>
         </div>
       )}
-      <NoteEditor note={draft} mode="create" tasks={tasks} onSave={handleSave} />
+      <NoteEditor
+        note={draft}
+        mode="create"
+        tasks={tasks}
+        onSave={handleSave}
+        breadcrumbs={[
+          { label: "Notes", href: "/notes" },
+          { label: type === "mom" ? "New MOM" : "New note" },
+        ]}
+      />
     </>
   );
 }

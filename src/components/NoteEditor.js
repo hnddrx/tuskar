@@ -2,14 +2,35 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Save, Undo2, Trash2, Download, CheckSquare, Square, Plus, X } from "lucide-react";
+import {
+  Save,
+  Undo2,
+  Trash2,
+  Download,
+  CheckSquare,
+  Square,
+  Plus,
+  X,
+  Mic,
+  MicOff,
+} from "lucide-react";
 import ConfigListEditor from "@/components/ConfigListEditor";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import { NoteTypeBadge } from "@/components/Badge";
 import { generateNoteDoc } from "@/lib/noteDocGenerator";
 import { downloadMarkdown } from "@/lib/docGenerator";
 import { newId } from "@/lib/id";
+import { useSpeechDictation } from "@/lib/useSpeechDictation";
 
-export default function NoteEditor({ note, mode, tasks, onSave, onDelete, onConvertActionItem }) {
+export default function NoteEditor({
+  note,
+  mode,
+  tasks,
+  onSave,
+  onDelete,
+  onConvertActionItem,
+  breadcrumbs,
+}) {
   const [pendingChanges, setPendingChanges] = useState({});
   const isDirty = mode === "create" || Object.keys(pendingChanges).length > 0;
 
@@ -52,11 +73,18 @@ export default function NoteEditor({ note, mode, tasks, onSave, onDelete, onConv
     downloadMarkdown(`${draft.title || "note"}.md`, generateNoteDoc(draft, tasks));
   }
 
+  const { supported: voiceSupported, listening: voiceListening, toggle: toggleVoice } =
+    useSpeechDictation((transcript) => {
+      const current = effective("body");
+      patchPending("body", current ? `${current} ${transcript}` : transcript);
+    });
+
   const type = effective("type");
   const isMom = type === "mom";
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 sm:px-8">
+      {breadcrumbs && <Breadcrumbs items={breadcrumbs} />}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <NoteTypeBadge type={type} />
         <div className="flex items-center gap-2">
@@ -137,9 +165,31 @@ export default function NoteEditor({ note, mode, tasks, onSave, onDelete, onConv
         </>
       )}
 
-      <label className="mb-1 block text-xs font-medium text-slate-500">
-        {isMom ? "Discussion" : "Note"}
-      </label>
+      <div className="mb-1 flex items-center justify-between">
+        <label className="block text-xs font-medium text-slate-500">
+          {isMom ? "Discussion" : "Note"}
+        </label>
+        <button
+          type="button"
+          onClick={toggleVoice}
+          disabled={!voiceSupported}
+          title={
+            voiceSupported
+              ? voiceListening
+                ? "Stop dictation"
+                : "Dictate into this field"
+              : "Voice input isn't supported in this browser"
+          }
+          className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
+            voiceListening
+              ? "animate-pulse bg-red-50 text-red-600"
+              : "text-slate-500 hover:bg-slate-100"
+          }`}
+        >
+          {voiceListening ? <MicOff size={13} /> : <Mic size={13} />}
+          {voiceListening ? "Listening…" : "Dictate"}
+        </button>
+      </div>
       <textarea
         value={effective("body")}
         onChange={(e) => patchPending("body", e.target.value)}
