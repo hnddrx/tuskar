@@ -5,6 +5,9 @@ import {
   DEFAULT_PRIORITY_COLOR,
   TYPE_COLORS,
   DEFAULT_TYPE_COLOR,
+  NOTE_TYPE_COLORS,
+  DEFAULT_NOTE_TYPE_COLOR,
+  NOTE_TYPE_LABELS,
 } from "@/lib/constants";
 
 export function StatusBadge({ status }) {
@@ -36,6 +39,17 @@ export function TypeBadge({ type }) {
       className={`inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ${cls}`}
     >
       {type}
+    </span>
+  );
+}
+
+export function NoteTypeBadge({ type }) {
+  const cls = NOTE_TYPE_COLORS[type] || DEFAULT_NOTE_TYPE_COLOR;
+  return (
+    <span
+      className={`inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium ${cls}`}
+    >
+      {NOTE_TYPE_LABELS[type] || type}
     </span>
   );
 }

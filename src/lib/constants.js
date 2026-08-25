@@ -41,6 +41,18 @@ export const TYPE_COLORS = {
 
 export const DEFAULT_TYPE_COLOR = "bg-slate-100 text-slate-600";
 
+export const NOTE_TYPE_COLORS = {
+  freeform: "bg-slate-100 text-slate-600",
+  mom: "bg-violet-100 text-violet-700",
+};
+
+export const DEFAULT_NOTE_TYPE_COLOR = "bg-slate-100 text-slate-600";
+
+export const NOTE_TYPE_LABELS = {
+  freeform: "Freeform",
+  mom: "MOM",
+};
+
 export const DONE_STATUSES = ["Done", "Completed", "Cancelled"];
 
 export const STORAGE_KEY = "taskar:v1";

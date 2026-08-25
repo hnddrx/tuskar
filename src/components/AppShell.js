@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
+  NotebookText,
   Table2,
   KanbanSquare,
   Settings2,
@@ -20,6 +21,7 @@ import { DONE_STATUSES } from "@/lib/constants";
 
 const NAV = [
   { href: "/", label: "Overview", icon: LayoutDashboard },
+  { href: "/notes", label: "Notes", icon: NotebookText },
   { href: "/tasks", label: "Task Table", icon: Table2 },
   { href: "/board", label: "Board", icon: KanbanSquare },
   { href: "/docs", label: "Auto Docs", icon: FileText },
