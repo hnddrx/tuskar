@@ -1,4 +1,5 @@
 import "./globals.css";
+import { ClerkProvider } from "@clerk/nextjs";
 import { TaskProvider } from "@/context/TaskContext";
 import AppShell from "@/components/AppShell";
 
@@ -12,9 +13,11 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full">
-        <TaskProvider>
-          <AppShell>{children}</AppShell>
-        </TaskProvider>
+        <ClerkProvider>
+          <TaskProvider>
+            <AppShell>{children}</AppShell>
+          </TaskProvider>
+        </ClerkProvider>
       </body>
     </html>
   );
