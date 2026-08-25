@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, Download } from "lucide-react";
+import { Plus, Search, Download, List, LayoutGrid, Pencil, Trash2 } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
+import { useConfirm } from "@/components/ConfirmProvider";
 import PageHeader from "@/components/PageHeader";
 import { NoteTypeBadge } from "@/components/Badge";
 import NoteTypePickerModal from "@/components/NoteTypePickerModal";
@@ -16,13 +17,17 @@ const TYPE_FILTERS = [
   { key: "mom", label: "MOM" },
 ];
 
+const VIEW_KEY = "taskar:notes-view:v1";
+
 export default function NotesPage() {
   const { tasks } = useTasks();
+  const confirm = useConfirm();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [view, setView] = useState("card");
 
   useEffect(() => {
     let cancelled = false;
@@ -39,6 +44,16 @@ export default function NotesPage() {
     };
   }, []);
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setView(localStorage.getItem(VIEW_KEY) || "card");
+  }, []);
+
+  function selectView(v) {
+    setView(v);
+    localStorage.setItem(VIEW_KEY, v);
+  }
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return notes.filter((n) => {
@@ -50,6 +65,18 @@ export default function NotesPage() {
 
   function compileAll() {
     downloadMarkdown("taskar-notes.md", generateNotesCompilationDoc(notes, tasks));
+  }
+
+  async function handleDeleteNote(note) {
+    const ok = await confirm({
+      title: "Delete this note?",
+      message: `"${note.title || "Untitled note"}" will be permanently deleted.`,
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
+    if (res.ok) setNotes((prev) => prev.filter((n) => n.id !== note.id));
   }
 
   return (
@@ -104,6 +131,34 @@ export default function NotesPage() {
               </button>
             ))}
           </div>
+          <div className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900">
+            <button
+              onClick={() => selectView("card")}
+              title="Card view"
+              aria-label="Card view"
+              aria-pressed={view === "card"}
+              className={`rounded p-1.5 transition-colors ${
+                view === "card"
+                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                  : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+              }`}
+            >
+              <LayoutGrid size={14} />
+            </button>
+            <button
+              onClick={() => selectView("list")}
+              title="List view"
+              aria-label="List view"
+              aria-pressed={view === "list"}
+              className={`rounded p-1.5 transition-colors ${
+                view === "list"
+                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                  : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+              }`}
+            >
+              <List size={14} />
+            </button>
+          </div>
         </div>
       </PageHeader>
 
@@ -112,33 +167,102 @@ export default function NotesPage() {
           <p className="text-sm text-slate-400 dark:text-slate-500">Loading…</p>
         ) : filtered.length === 0 ? (
           <p className="text-sm text-slate-400 dark:text-slate-500">No notes yet.</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        ) : view === "card" ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((note) => {
               const linkedTask = note.linkedTaskId
                 ? tasks.find((t) => t.id === note.linkedTaskId)
                 : null;
               return (
-                <Link
+                <div
                   key={note.id}
-                  href={`/notes/${note.id}`}
-                  className="block rounded-lg border border-slate-200 bg-white px-4 py-3 transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600"
+                  className="group relative rounded-lg border border-slate-200 bg-white px-4 py-3 transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600"
                 >
-                  <div className="mb-1.5 flex items-center gap-2">
+                  <Link href={`/notes/${note.id}`} className="block pr-10">
+                    <div className="mb-1.5 flex items-center gap-2">
+                      <NoteTypeBadge type={note.type} />
+                      {linkedTask && (
+                        <span className="whitespace-nowrap text-xs text-slate-400 dark:text-slate-500">
+                          {linkedTask.ticketId}
+                        </span>
+                      )}
+                    </div>
+                    <h2 className="mb-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-200">
+                      {note.title || "Untitled note"}
+                    </h2>
+                    <p className="line-clamp-2 text-xs text-slate-400 dark:text-slate-500">
+                      {note.body || "No content yet."}
+                    </p>
+                  </Link>
+                  <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Link
+                      href={`/notes/${note.id}`}
+                      title="Edit"
+                      aria-label="Edit note"
+                      className="rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                    >
+                      <Pencil size={13} />
+                    </Link>
+                    <button
+                      onClick={() => handleDeleteNote(note)}
+                      title="Delete"
+                      aria-label="Delete note"
+                      className="rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-slate-500 dark:hover:bg-red-950 dark:hover:text-red-400"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
+            {filtered.map((note) => {
+              const linkedTask = note.linkedTaskId
+                ? tasks.find((t) => t.id === note.linkedTaskId)
+                : null;
+              return (
+                <div
+                  key={note.id}
+                  className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                >
+                  <Link
+                    href={`/notes/${note.id}`}
+                    className="flex min-w-0 flex-1 items-center gap-3"
+                  >
                     <NoteTypeBadge type={note.type} />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-200">
+                      {note.title || "Untitled note"}
+                    </span>
+                    <span className="hidden min-w-0 flex-1 truncate text-xs text-slate-400 dark:text-slate-500 sm:block">
+                      {note.body || "No content yet."}
+                    </span>
                     {linkedTask && (
-                      <span className="whitespace-nowrap text-xs text-slate-400 dark:text-slate-500">
+                      <span className="hidden whitespace-nowrap text-xs text-slate-400 dark:text-slate-500 md:block">
                         {linkedTask.ticketId}
                       </span>
                     )}
+                  </Link>
+                  <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <Link
+                      href={`/notes/${note.id}`}
+                      title="Edit"
+                      aria-label="Edit note"
+                      className="rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                    >
+                      <Pencil size={13} />
+                    </Link>
+                    <button
+                      onClick={() => handleDeleteNote(note)}
+                      title="Delete"
+                      aria-label="Delete note"
+                      className="rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-slate-500 dark:hover:bg-red-950 dark:hover:text-red-400"
+                    >
+                      <Trash2 size={13} />
+                    </button>
                   </div>
-                  <h2 className="mb-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-200">
-                    {note.title || "Untitled note"}
-                  </h2>
-                  <p className="line-clamp-2 text-xs text-slate-400 dark:text-slate-500">
-                    {note.body || "No content yet."}
-                  </p>
-                </Link>
+                </div>
               );
             })}
           </div>

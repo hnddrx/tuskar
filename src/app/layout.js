@@ -2,6 +2,7 @@ import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { TaskProvider } from "@/context/TaskContext";
 import AppShell from "@/components/AppShell";
+import { ConfirmProvider } from "@/components/ConfirmProvider";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 export const metadata = {
@@ -18,9 +19,11 @@ export default function RootLayout({ children }) {
       </head>
       <body className="min-h-full">
         <ClerkProvider>
-          <TaskProvider>
-            <AppShell>{children}</AppShell>
-          </TaskProvider>
+          <ConfirmProvider>
+            <TaskProvider>
+              <AppShell>{children}</AppShell>
+            </TaskProvider>
+          </ConfirmProvider>
         </ClerkProvider>
       </body>
     </html>

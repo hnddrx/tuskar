@@ -13,6 +13,7 @@ import { useAuth } from "@clerk/nextjs";
 import seed from "@/data/seed.json";
 import { newId, nowIso, todayIso } from "@/lib/id";
 import { STORAGE_KEY } from "@/lib/constants";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 const TaskContext = createContext(null);
 const IMPORT_OFFERED_KEY = "taskar:import-offered:v1";
@@ -46,6 +47,7 @@ function readLegacyLocalState() {
 
 export function TaskProvider({ children }) {
   const { isLoaded, isSignedIn } = useAuth();
+  const confirm = useConfirm();
   const [state, setState] = useState({
     tasks: seed.tasks,
     comments: seed.comments,
@@ -87,9 +89,13 @@ export function TaskProvider({ children }) {
         const alreadyOffered = window.localStorage.getItem(IMPORT_OFFERED_KEY);
         const legacy = alreadyOffered ? null : readLegacyLocalState();
         if (!server.hasSynced && legacy && legacy.tasks.length > 0) {
-          const wantsImport = window.confirm(
-            "Import this device's existing tasks into your account?"
-          );
+          const wantsImport = await confirm({
+            title: "Import existing tasks?",
+            message:
+              "This device has tasks saved locally from before cloud sync. Import them into your account now?",
+            confirmLabel: "Import",
+            cancelLabel: "Skip",
+          });
           window.localStorage.setItem(IMPORT_OFFERED_KEY, "1");
           if (wantsImport) {
             const res = await fetch("/api/state/import", {
@@ -121,7 +127,7 @@ export function TaskProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, confirm]);
 
   const addTask = useCallback((task) => {
     const id = newId("task");

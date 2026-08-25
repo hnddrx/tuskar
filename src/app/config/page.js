@@ -1,11 +1,24 @@
 "use client";
 
 import { useTasks } from "@/context/TaskContext";
+import { useConfirm } from "@/components/ConfirmProvider";
 import ConfigListEditor from "@/components/ConfigListEditor";
 import PageHeader from "@/components/PageHeader";
 
 export default function ConfigPage() {
   const { config, updateConfig, resetToSeed } = useTasks();
+  const confirm = useConfirm();
+
+  async function handleReset() {
+    const ok = await confirm({
+      title: "Reset to imported data?",
+      message:
+        "All tasks, comments, and configuration will revert to the original imported data. This cannot be undone.",
+      confirmLabel: "Reset",
+      danger: true,
+    });
+    if (ok) resetToSeed();
+  }
 
   return (
     <div className="flex-1">
@@ -14,15 +27,7 @@ export default function ConfigPage() {
         subtitle="These lists power every dropdown in the app — statuses, priorities, task types, and assignees."
         actions={
           <button
-            onClick={() => {
-              if (
-                confirm(
-                  "Reset all tasks, comments, and configuration back to the original imported data? This cannot be undone."
-                )
-              ) {
-                resetToSeed();
-              }
-            }}
+            onClick={handleReset}
             className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
           >
             Reset to imported data

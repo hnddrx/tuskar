@@ -35,8 +35,14 @@ export default function ThemeToggle() {
     localStorage.setItem(THEME_KEY, value);
   }
 
+  const index = Math.max(0, OPTIONS.findIndex((o) => o.value === theme));
+
   return (
-    <div className="flex items-center gap-0.5 rounded-md border border-slate-200 bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900">
+    <div className="relative inline-flex items-center rounded-full bg-slate-100 p-1 dark:bg-slate-800">
+      <div
+        className="absolute h-7 w-7 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out dark:bg-slate-950"
+        style={{ transform: `translateX(${index * 28}px)` }}
+      />
       {OPTIONS.map(({ value, icon: Icon, label }) => (
         <button
           key={value}
@@ -45,10 +51,10 @@ export default function ThemeToggle() {
           title={label}
           aria-label={label}
           aria-pressed={theme === value}
-          className={`rounded p-1.5 transition-colors ${
+          className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-full transition-colors ${
             theme === value
-              ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-              : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+              ? "text-slate-900 dark:text-slate-100"
+              : "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
           }`}
         >
           <Icon size={14} />

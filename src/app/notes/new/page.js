@@ -43,7 +43,7 @@ function NewNoteInner() {
   return (
     <>
       {saveError && (
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 pt-4 text-xs text-amber-800 dark:text-amber-300 sm:px-8">
+        <div className="flex items-center justify-between gap-3 px-4 pt-4 text-xs text-amber-800 dark:text-amber-300 sm:px-8 lg:px-12">
           <div className="flex flex-1 items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950">
             <span>Couldn&apos;t save: {saveError} — click Save to try again.</span>
             <button

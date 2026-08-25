@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useTasks } from "@/context/TaskContext";
+import { useConfirm } from "@/components/ConfirmProvider";
 import NoteEditor from "@/components/NoteEditor";
 
 export default function NoteDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { tasks, addTask } = useTasks();
+  const confirm = useConfirm();
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState(null);
@@ -51,7 +53,13 @@ export default function NoteDetailPage() {
   }
 
   async function handleDelete() {
-    if (!confirm("Delete this note? This cannot be undone.")) return;
+    const ok = await confirm({
+      title: "Delete this note?",
+      message: "This cannot be undone.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/notes/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
@@ -79,7 +87,7 @@ export default function NoteDetailPage() {
   return (
     <>
       {saveError && (
-        <div className="mx-auto flex max-w-2xl items-center justify-between gap-3 px-4 pt-4 text-xs text-amber-800 dark:text-amber-300 sm:px-8">
+        <div className="flex items-center justify-between gap-3 px-4 pt-4 text-xs text-amber-800 dark:text-amber-300 sm:px-8 lg:px-12">
           <div className="flex flex-1 items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 dark:border-amber-900 dark:bg-amber-950">
             <span>Couldn&apos;t save: {saveError}</span>
             <div className="flex items-center gap-2">

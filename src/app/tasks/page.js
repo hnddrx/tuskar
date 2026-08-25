@@ -13,6 +13,7 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/Badge";
 import { ProgressBar } from "@/components/ProgressBar";
 import TaskFormModal from "@/components/TaskFormModal";
@@ -219,6 +220,7 @@ export default function TasksPage() {
 
 function TasksPageInner() {
   const { tasks, comments, config, deleteTask } = useTasks();
+  const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { query, filters, sort, page, pageSize } = useMemo(
@@ -496,8 +498,14 @@ function TasksPageInner() {
                           Edit
                         </button>
                         <button
-                          onClick={() => {
-                            if (confirm(`Delete "${t.name}"?`)) deleteTask(t.id);
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: `Delete "${t.name}"?`,
+                              message: "This cannot be undone.",
+                              confirmLabel: "Delete",
+                              danger: true,
+                            });
+                            if (ok) deleteTask(t.id);
                           }}
                           className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors dark:text-slate-500"
                         >

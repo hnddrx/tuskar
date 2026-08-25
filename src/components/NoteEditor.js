@@ -83,7 +83,7 @@ export default function NoteEditor({
   const isMom = type === "mom";
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-8 lg:px-12">
+    <div className="px-4 py-6 sm:px-8 lg:px-12">
       {breadcrumbs && <Breadcrumbs items={breadcrumbs} />}
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -124,90 +124,98 @@ export default function NoteEditor({
         </div>
       </div>
 
-      <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none sm:p-6">
-        <input
-          value={effective("title")}
-          onChange={(e) => patchPending("title", e.target.value)}
-          placeholder="Note title"
-          className="mb-4 w-full border-0 border-b border-slate-200 px-0 pb-3 text-xl font-semibold text-slate-900 transition-colors placeholder:font-normal placeholder:text-slate-300 focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:text-slate-100 dark:placeholder:text-slate-700 dark:focus:border-slate-500 sm:text-2xl"
-        />
+      <div className="lg:grid lg:grid-cols-3 lg:items-start lg:gap-6">
+        <div className="lg:col-span-2">
+          <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none sm:p-6">
+            <input
+              value={effective("title")}
+              onChange={(e) => patchPending("title", e.target.value)}
+              placeholder="Note title"
+              className="w-full border-0 bg-transparent px-0 text-xl font-semibold text-slate-900 transition-colors placeholder:font-normal placeholder:text-slate-300 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-700 sm:text-2xl"
+            />
+          </div>
 
-        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-          Link to task (optional)
-        </label>
-        <select
-          value={effective("linkedTaskId") || ""}
-          onChange={(e) => patchPending("linkedTaskId", e.target.value || null)}
-          className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm transition-colors focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:bg-slate-800/60 dark:focus:border-slate-500 sm:max-w-sm"
-        >
-          <option value="">No linked task</option>
-          {tasks.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.ticketId} — {t.name}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none sm:p-6">
+            <div className="mb-2 flex items-center justify-between">
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+                {isMom ? "Discussion" : "Note"}
+              </label>
+              <button
+                type="button"
+                onClick={toggleVoice}
+                disabled={!voiceSupported}
+                title={
+                  voiceSupported
+                    ? voiceListening
+                      ? "Stop dictation"
+                      : "Dictate into this field"
+                    : "Voice input isn't supported in this browser"
+                }
+                className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  voiceListening
+                    ? "animate-pulse bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400"
+                    : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                }`}
+              >
+                {voiceListening ? <MicOff size={13} /> : <Mic size={13} />}
+                {voiceListening ? "Listening…" : "Dictate"}
+              </button>
+            </div>
+            <textarea
+              value={effective("body")}
+              onChange={(e) => patchPending("body", e.target.value)}
+              rows={16}
+              placeholder={isMom ? "What was discussed…" : "Write your note…"}
+              className="w-full border-0 px-0 text-sm leading-relaxed text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-300 dark:placeholder:text-slate-600"
+            />
+          </div>
 
-      {isMom && (
-        <div className="mb-4 grid gap-4 sm:grid-cols-2">
-          <ConfigListEditor
-            title="Attendees"
-            items={effective("attendees")}
-            onChange={(v) => patchPending("attendees", v)}
-          />
-          <ConfigListEditor
-            title="Agenda"
-            items={effective("agenda")}
-            onChange={(v) => patchPending("agenda", v)}
-          />
+          {isMom && (
+            <ActionItemsEditor
+              items={effective("actionItems")}
+              onChange={(v) => patchPending("actionItems", v)}
+              onConvert={handleConvert}
+              tasks={tasks}
+              canConvert={mode === "edit"}
+            />
+          )}
         </div>
-      )}
 
-      <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none sm:p-6">
-        <div className="mb-2 flex items-center justify-between">
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
-            {isMom ? "Discussion" : "Note"}
-          </label>
-          <button
-            type="button"
-            onClick={toggleVoice}
-            disabled={!voiceSupported}
-            title={
-              voiceSupported
-                ? voiceListening
-                  ? "Stop dictation"
-                  : "Dictate into this field"
-                : "Voice input isn't supported in this browser"
-            }
-            className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-              voiceListening
-                ? "animate-pulse bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400"
-                : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-            }`}
-          >
-            {voiceListening ? <MicOff size={13} /> : <Mic size={13} />}
-            {voiceListening ? "Listening…" : "Dictate"}
-          </button>
+        <div className="mt-4 space-y-4 lg:mt-0">
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+            <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">
+              Link to task
+            </label>
+            <select
+              value={effective("linkedTaskId") || ""}
+              onChange={(e) => patchPending("linkedTaskId", e.target.value || null)}
+              className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm transition-colors focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:bg-slate-800/60 dark:focus:border-slate-500"
+            >
+              <option value="">No linked task</option>
+              {tasks.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.ticketId} — {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {isMom && (
+            <>
+              <ConfigListEditor
+                title="Attendees"
+                items={effective("attendees")}
+                onChange={(v) => patchPending("attendees", v)}
+              />
+              <ConfigListEditor
+                title="Agenda"
+                items={effective("agenda")}
+                onChange={(v) => patchPending("agenda", v)}
+              />
+            </>
+          )}
         </div>
-        <textarea
-          value={effective("body")}
-          onChange={(e) => patchPending("body", e.target.value)}
-          rows={14}
-          placeholder={isMom ? "What was discussed…" : "Write your note…"}
-          className="w-full border-0 px-0 text-sm leading-relaxed text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-300 dark:placeholder:text-slate-600"
-        />
       </div>
-
-      {isMom && (
-        <ActionItemsEditor
-          items={effective("actionItems")}
-          onChange={(v) => patchPending("actionItems", v)}
-          onConvert={handleConvert}
-          tasks={tasks}
-          canConvert={mode === "edit"}
-        />
-      )}
     </div>
   );
 }
