@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Save, Undo2, Trash2, Download, CheckSquare, Square, Plus, X } from "lucide-react";
 import ConfigListEditor from "@/components/ConfigListEditor";
 import { NoteTypeBadge } from "@/components/Badge";
@@ -8,7 +9,7 @@ import { generateNoteDoc } from "@/lib/noteDocGenerator";
 import { downloadMarkdown } from "@/lib/docGenerator";
 import { newId } from "@/lib/id";
 
-export default function NoteEditor({ note, mode, tasks, onSave, onDelete }) {
+export default function NoteEditor({ note, mode, tasks, onSave, onDelete, onConvertActionItem }) {
   const [pendingChanges, setPendingChanges] = useState({});
   const isDirty = mode === "create" || Object.keys(pendingChanges).length > 0;
 
@@ -38,6 +39,11 @@ export default function NoteEditor({ note, mode, tasks, onSave, onDelete }) {
   }
 
   function handleDiscard() {
+    setPendingChanges({});
+  }
+
+  function handleConvert(item) {
+    onConvertActionItem(item, effective("actionItems"), pendingChanges);
     setPendingChanges({});
   }
 
@@ -146,13 +152,16 @@ export default function NoteEditor({ note, mode, tasks, onSave, onDelete }) {
         <ActionItemsEditor
           items={effective("actionItems")}
           onChange={(v) => patchPending("actionItems", v)}
+          onConvert={handleConvert}
+          tasks={tasks}
+          canConvert={mode === "edit"}
         />
       )}
     </div>
   );
 }
 
-function ActionItemsEditor({ items, onChange }) {
+function ActionItemsEditor({ items, onChange, onConvert, tasks, canConvert }) {
   const [draft, setDraft] = useState("");
 
   function add() {
@@ -174,32 +183,52 @@ function ActionItemsEditor({ items, onChange }) {
     <div className="rounded-xl border border-slate-200 bg-white p-5">
       <h2 className="text-sm font-semibold text-slate-800">Action items</h2>
       <div className="mb-3 mt-3 space-y-1.5">
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="flex items-center gap-2 rounded-md border border-slate-100 bg-slate-50 px-2.5 py-1.5"
-          >
-            <button
-              onClick={() => toggleDone(item.id)}
-              className="shrink-0 text-slate-400 hover:text-slate-600"
+        {items.map((item) => {
+          const task = item.taskId ? tasks.find((t) => t.id === item.taskId) : null;
+          return (
+            <div
+              key={item.id}
+              className="flex items-center gap-2 rounded-md border border-slate-100 bg-slate-50 px-2.5 py-1.5"
             >
-              {item.done ? <CheckSquare size={15} /> : <Square size={15} />}
-            </button>
-            <span
-              className={`flex-1 text-sm ${
-                item.done ? "text-slate-400 line-through" : "text-slate-700"
-              }`}
-            >
-              {item.text}
-            </span>
-            <button
-              onClick={() => remove(item.id)}
-              className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
-            >
-              <X size={13} />
-            </button>
-          </div>
-        ))}
+              <button
+                onClick={() => toggleDone(item.id)}
+                className="shrink-0 text-slate-400 hover:text-slate-600"
+              >
+                {item.done ? <CheckSquare size={15} /> : <Square size={15} />}
+              </button>
+              <span
+                className={`flex-1 text-sm ${
+                  item.done ? "text-slate-400 line-through" : "text-slate-700"
+                }`}
+              >
+                {item.text}
+              </span>
+              {task ? (
+                <Link
+                  href={`/tasks/${task.id}`}
+                  className="whitespace-nowrap text-xs text-blue-600 hover:underline"
+                >
+                  {task.ticketId}
+                </Link>
+              ) : (
+                <button
+                  onClick={() => onConvert(item)}
+                  disabled={!canConvert}
+                  title={canConvert ? "Create a task from this action item" : "Save this note first"}
+                  className="whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Convert to Task
+                </button>
+              )}
+              <button
+                onClick={() => remove(item.id)}
+                className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
+              >
+                <X size={13} />
+              </button>
+            </div>
+          );
+        })}
         {items.length === 0 && (
           <p className="text-xs text-slate-400">No action items yet.</p>
         )}

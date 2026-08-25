@@ -8,7 +8,7 @@ import NoteEditor from "@/components/NoteEditor";
 export default function NoteDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { tasks } = useTasks();
+  const { tasks, addTask } = useTasks();
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState(null);
@@ -61,6 +61,14 @@ export default function NoteDetailPage() {
     }
   }
 
+  function handleConvertActionItem(item, currentItems, pending) {
+    const newTaskId = addTask({ name: item.text, syncSource: "Manual" });
+    const updatedItems = currentItems.map((ai) =>
+      ai.id === item.id ? { ...ai, taskId: newTaskId } : ai
+    );
+    savePatch({ ...pending, actionItems: updatedItems });
+  }
+
   if (loading) {
     return <p className="px-4 py-6 text-sm text-slate-400 sm:px-8">Loading…</p>;
   }
@@ -97,6 +105,7 @@ export default function NoteDetailPage() {
         tasks={tasks}
         onSave={savePatch}
         onDelete={handleDelete}
+        onConvertActionItem={handleConvertActionItem}
       />
     </>
   );
