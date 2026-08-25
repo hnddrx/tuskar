@@ -113,7 +113,7 @@ export default function NotesPage() {
         ) : filtered.length === 0 ? (
           <p className="text-sm text-slate-400 dark:text-slate-500">No notes yet.</p>
         ) : (
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {filtered.map((note) => {
               const linkedTask = note.linkedTaskId
                 ? tasks.find((t) => t.id === note.linkedTaskId)
@@ -122,7 +122,7 @@ export default function NotesPage() {
                 <Link
                   key={note.id}
                   href={`/notes/${note.id}`}
-                  className="block py-5 transition-opacity hover:opacity-70"
+                  className="block rounded-lg border border-slate-200 bg-white px-4 py-3 transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600"
                 >
                   <div className="mb-1.5 flex items-center gap-2">
                     <NoteTypeBadge type={note.type} />
@@ -132,10 +132,10 @@ export default function NotesPage() {
                       </span>
                     )}
                   </div>
-                  <h2 className="mb-1 truncate font-serif text-xl font-semibold text-slate-900 dark:text-slate-100">
+                  <h2 className="mb-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-200">
                     {note.title || "Untitled note"}
                   </h2>
-                  <p className="line-clamp-2 text-sm text-slate-500 dark:text-slate-400">
+                  <p className="line-clamp-2 text-xs text-slate-400 dark:text-slate-500">
                     {note.body || "No content yet."}
                   </p>
                 </Link>

@@ -83,22 +83,22 @@ export default function NoteEditor({
   const isMom = type === "mom";
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10 sm:px-4 sm:py-14">
+    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-8 lg:px-12">
       {breadcrumbs && <Breadcrumbs items={breadcrumbs} />}
 
-      <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <NoteTypeBadge type={type} />
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           <button
             onClick={handleExport}
-            className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
           >
             <Download size={14} /> Export
           </button>
           {mode === "edit" && (
             <button
               onClick={onDelete}
-              className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-red-500 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
+              className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-red-500 transition-colors hover:bg-red-50 dark:border-slate-800 dark:bg-slate-900"
             >
               <Trash2 size={14} /> Delete
             </button>
@@ -107,14 +107,14 @@ export default function NoteEditor({
             <>
               <button
                 onClick={handleSave}
-                className="flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
+                className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
               >
                 <Save size={14} /> Save
               </button>
               {mode === "edit" && (
                 <button
                   onClick={handleDiscard}
-                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                  className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
                 >
                   <Undo2 size={14} /> Discard
                 </button>
@@ -124,23 +124,23 @@ export default function NoteEditor({
         </div>
       </div>
 
-      <input
-        value={effective("title")}
-        onChange={(e) => patchPending("title", e.target.value)}
-        placeholder="Title"
-        className="mb-3 w-full border-0 bg-transparent font-serif text-4xl font-bold leading-tight text-slate-900 placeholder:text-slate-300 focus:outline-none dark:text-slate-100 dark:placeholder:text-slate-700"
-      />
+      <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none sm:p-6">
+        <input
+          value={effective("title")}
+          onChange={(e) => patchPending("title", e.target.value)}
+          placeholder="Note title"
+          className="mb-4 w-full border-0 border-b border-slate-200 px-0 pb-3 text-xl font-semibold text-slate-900 transition-colors placeholder:font-normal placeholder:text-slate-300 focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:text-slate-100 dark:placeholder:text-slate-700 dark:focus:border-slate-500 sm:text-2xl"
+        />
 
-      <div className="mb-8 flex flex-wrap items-center gap-2 border-b border-slate-100 pb-6 dark:border-slate-800">
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
-          Linked task
+        <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
+          Link to task (optional)
         </label>
         <select
           value={effective("linkedTaskId") || ""}
           onChange={(e) => patchPending("linkedTaskId", e.target.value || null)}
-          className="rounded-md border-0 bg-slate-100 px-2 py-1 text-sm text-slate-600 transition-colors focus:outline-none dark:bg-slate-800 dark:text-slate-300"
+          className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm transition-colors focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:bg-slate-800/60 dark:focus:border-slate-500 sm:max-w-sm"
         >
-          <option value="">None</option>
+          <option value="">No linked task</option>
           {tasks.map((t) => (
             <option key={t.id} value={t.id}>
               {t.ticketId} — {t.name}
@@ -150,7 +150,7 @@ export default function NoteEditor({
       </div>
 
       {isMom && (
-        <div className="mb-8 grid gap-6 border-b border-slate-100 pb-8 dark:border-slate-800 sm:grid-cols-2">
+        <div className="mb-4 grid gap-4 sm:grid-cols-2">
           <ConfigListEditor
             title="Attendees"
             items={effective("attendees")}
@@ -164,38 +164,40 @@ export default function NoteEditor({
         </div>
       )}
 
-      <div className="mb-2 flex items-center justify-between">
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
-          {isMom ? "Discussion" : "Story"}
-        </label>
-        <button
-          type="button"
-          onClick={toggleVoice}
-          disabled={!voiceSupported}
-          title={
-            voiceSupported
-              ? voiceListening
-                ? "Stop dictation"
-                : "Dictate into this field"
-              : "Voice input isn't supported in this browser"
-          }
-          className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-            voiceListening
-              ? "animate-pulse bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400"
-              : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-          }`}
-        >
-          {voiceListening ? <MicOff size={13} /> : <Mic size={13} />}
-          {voiceListening ? "Listening…" : "Dictate"}
-        </button>
+      <div className="mb-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none sm:p-6">
+        <div className="mb-2 flex items-center justify-between">
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+            {isMom ? "Discussion" : "Note"}
+          </label>
+          <button
+            type="button"
+            onClick={toggleVoice}
+            disabled={!voiceSupported}
+            title={
+              voiceSupported
+                ? voiceListening
+                  ? "Stop dictation"
+                  : "Dictate into this field"
+                : "Voice input isn't supported in this browser"
+            }
+            className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              voiceListening
+                ? "animate-pulse bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400"
+                : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+            }`}
+          >
+            {voiceListening ? <MicOff size={13} /> : <Mic size={13} />}
+            {voiceListening ? "Listening…" : "Dictate"}
+          </button>
+        </div>
+        <textarea
+          value={effective("body")}
+          onChange={(e) => patchPending("body", e.target.value)}
+          rows={14}
+          placeholder={isMom ? "What was discussed…" : "Write your note…"}
+          className="w-full border-0 px-0 text-sm leading-relaxed text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-300 dark:placeholder:text-slate-600"
+        />
       </div>
-      <textarea
-        value={effective("body")}
-        onChange={(e) => patchPending("body", e.target.value)}
-        rows={16}
-        placeholder={isMom ? "What was discussed…" : "Tell your story…"}
-        className="mb-10 w-full border-0 bg-transparent font-serif text-xl leading-relaxed text-slate-800 placeholder:text-slate-300 focus:outline-none dark:text-slate-200 dark:placeholder:text-slate-700"
-      />
 
       {isMom && (
         <ActionItemsEditor
