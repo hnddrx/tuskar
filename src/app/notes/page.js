@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useAuth } from "@clerk/nextjs";
 import { Plus, Search, Download, List, LayoutGrid, Pencil, Trash2 } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ConfirmProvider";
@@ -21,6 +22,7 @@ const VIEW_KEY = "taskar:notes-view:v1";
 
 export default function NotesPage() {
   const { tasks } = useTasks();
+  const { userId } = useAuth();
   const confirm = useConfirm();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,9 +30,19 @@ export default function NotesPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [view, setView] = useState("card");
+  const lastUserIdRef = useRef(undefined);
 
   useEffect(() => {
     let cancelled = false;
+
+    // Switched accounts without a full page reload — clear the previous
+    // account's notes immediately so they never linger on screen.
+    if (lastUserIdRef.current !== undefined && lastUserIdRef.current !== userId) {
+      setNotes([]);
+      setLoading(true);
+    }
+    lastUserIdRef.current = userId;
+
     fetch("/api/notes")
       .then((res) => res.json())
       .then((data) => {
@@ -42,7 +54,7 @@ export default function NotesPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import {
   CheckCircle2,
   XCircle,
@@ -34,6 +35,7 @@ const DEFAULT_LOCAL_PREFS = {
 
 export default function JiraPage() {
   const { mergeJiraIssues } = useTasks();
+  const { userId } = useAuth();
 
   const [status, setStatus] = useState(null); // GET /api/jira/config result
   const [form, setForm] = useState(EMPTY_FORM);
@@ -50,6 +52,7 @@ export default function JiraPage() {
 
   const [prefs, setPrefs] = useState(DEFAULT_LOCAL_PREFS);
   const timerRef = useRef(null);
+  const lastUserIdRef = useRef(undefined);
 
   function loadConfig() {
     return fetch("/api/jira/config")
@@ -70,9 +73,16 @@ export default function JiraPage() {
       .catch(() => setStatus({ configured: false }));
   }
 
-  // One-time load: server-side connection status/settings, plus this
-  // browser's local (non-secret) import preferences.
+  // Load server-side connection status/settings, plus this browser's local
+  // (non-secret) import preferences. Re-runs on account switch so a
+  // previous account's Jira connection never lingers on screen.
   useEffect(() => {
+    if (lastUserIdRef.current !== undefined && lastUserIdRef.current !== userId) {
+      setStatus(null);
+      setForm(EMPTY_FORM);
+    }
+    lastUserIdRef.current = userId;
+
     loadConfig();
     try {
       const raw = window.localStorage.getItem(JIRA_SETTINGS_KEY);
@@ -81,7 +91,7 @@ export default function JiraPage() {
     } catch {
       // ignore
     }
-  }, []);
+  }, [userId]);
 
   function persistPrefs(next) {
     setPrefs(next);

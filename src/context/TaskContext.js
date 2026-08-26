@@ -46,7 +46,7 @@ function readLegacyLocalState() {
 }
 
 export function TaskProvider({ children }) {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, userId } = useAuth();
   const confirm = useConfirm();
   const [state, setState] = useState({
     tasks: seed.tasks,
@@ -56,6 +56,7 @@ export function TaskProvider({ children }) {
   const [hydrated, setHydrated] = useState(false);
   const [syncError, setSyncError] = useState(null);
   const failedRequestRef = useRef(null);
+  const lastUserIdRef = useRef(undefined);
 
   const syncCall = useCallback((requestFn) => {
     requestFn()
@@ -81,6 +82,15 @@ export function TaskProvider({ children }) {
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
     let cancelled = false;
+
+    // Switched accounts (e.g. Clerk's account switcher) without a full page
+    // reload — clear the previous account's data immediately so it never
+    // lingers on screen while the new account's state loads.
+    if (lastUserIdRef.current !== undefined && lastUserIdRef.current !== userId) {
+      setHydrated(false);
+      setState({ tasks: [], comments: [], config: seed.config });
+    }
+    lastUserIdRef.current = userId;
 
     (async () => {
       try {
@@ -127,7 +137,7 @@ export function TaskProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, isSignedIn, confirm]);
+  }, [isLoaded, isSignedIn, userId, confirm]);
 
   const addTask = useCallback((task) => {
     const id = newId("task");
