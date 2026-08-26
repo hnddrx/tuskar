@@ -1,0 +1,207 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ground:#0A0F1C; --panel:#111827; --panel2:#161F33; --line:#1F2B44;
+    --ink:#E8ECF5; --dim:#94A3B8; --faint:#5A6B87;
+    --personal:#94A3B8; --team:#818CF8; --deep:#4F46E5;
+    --display:"Bricolage Grotesque",system-ui,sans-serif;
+    --body:"Public Sans",system-ui,sans-serif;
+    --mono:"JetBrains Mono",monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#333;font-family:var(--body);display:flex;flex-direction:column;gap:40px;padding:40px;align-items:flex-start}
+
+  .ad{background:var(--ground);color:var(--ink);position:relative;overflow:hidden;flex:none}
+
+  /* shared bits */
+  .logo-row{display:flex;align-items:center;gap:14px}
+  .logo-row b{font-family:var(--display);font-weight:800;letter-spacing:-.01em}
+  .eyebrow{font-family:var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+  h1{font-family:var(--display);font-weight:800;letter-spacing:-.03em;line-height:.98}
+  h1 .muted{color:var(--faint)}
+  .sub{color:var(--dim);line-height:1.5}
+
+  .divide{display:grid;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--panel)}
+  .side{padding:28px 26px}
+  .tag{display:flex;align-items:center;gap:9px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase}
+  .dot{width:9px;height:9px;border-radius:99px;flex:none}
+  .side h3{font-family:var(--display);font-weight:600;letter-spacing:-.01em;margin-top:14px}
+  .side p{color:var(--dim);margin-top:8px;line-height:1.45}
+  .p .tag,.p .dot{color:var(--personal)} .p .dot{background:var(--personal)}
+  .t .tag,.t .dot{color:var(--team)} .t .dot{background:var(--team)}
+  .rule{background:var(--line)}
+
+  .rows{display:flex;flex-direction:column;gap:10px}
+  .row{display:flex;align-items:center;gap:16px;padding:14px 18px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+  .tid{font-family:var(--mono);color:var(--faint);flex:none}
+  .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .avs{display:flex;flex:none}
+  .av{border-radius:99px;background:var(--deep);color:#fff;font-weight:600;display:grid;place-items:center;border:3px solid var(--panel2);margin-left:-8px}
+  .av:first-child{margin-left:0}
+  .chip{border-radius:99px;background:#173026;color:#5EDCA0;flex:none}
+
+  .cta{display:inline-flex;align-items:center;gap:10px;background:var(--ink);color:var(--ground);font-weight:600;border-radius:12px}
+  .foot{font-family:var(--mono);color:var(--faint)}
+
+  /* glow */
+  .glow{position:absolute;border-radius:99px;filter:blur(90px);opacity:.30;background:var(--deep);pointer-events:none}
+
+  /* ---------- 1 · SQUARE 1080 ---------- */
+  #sq{width:1080px;height:1080px;padding:76px 72px;display:flex;flex-direction:column}
+  #sq .glow{width:620px;height:620px;right:-190px;top:-200px}
+  #sq .logo-row b{font-size:34px}
+  #sq .eyebrow{font-size:19px;margin-top:60px}
+  #sq h1{font-size:118px;margin-top:26px}
+  #sq .sub{font-size:26px;margin-top:30px;max-width:20ch}
+  #sq .divide{grid-template-columns:1fr 1px 1fr;margin-top:70px}
+  #sq .tag{font-size:15px}
+  #sq .side h3{font-size:29px}
+  #sq .side p{font-size:19px}
+  #sq .foot{font-size:17px;margin-top:auto;padding-top:40px;display:flex;justify-content:space-between;align-items:center}
+  #sq .cta{font-size:21px;padding:15px 28px}
+
+  /* ---------- 2 · LANDSCAPE 1200x630 ---------- */
+  #ls{width:1200px;height:630px;padding:60px;display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}
+  #ls .glow{width:520px;height:520px;right:-180px;bottom:-220px}
+  #ls .logo-row b{font-size:27px}
+  #ls h1{font-size:76px;margin-top:34px}
+  #ls .sub{font-size:20px;margin-top:22px;max-width:30ch}
+  #ls .foot{font-size:15px;margin-top:30px}
+  #ls .rows{position:relative}
+  #ls .row{font-size:18px}
+  #ls .tid{font-size:14px;width:76px}
+  #ls .av{width:32px;height:32px;font-size:13px}
+  #ls .chip{font-size:14px;padding:4px 12px}
+  #ls .pillrow{display:flex;gap:10px;margin-bottom:16px}
+  #ls .pill{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;padding:6px 14px;border-radius:99px}
+  #ls .pill.p{background:#1D2739;color:var(--personal)}
+  #ls .pill.t{background:#241F4D;color:var(--team)}
+
+  /* ---------- 3 · STORY 1080x1920 ---------- */
+  #st{width:1080px;height:1920px;padding:110px 80px;display:flex;flex-direction:column}
+  #st .glow{width:700px;height:700px;left:-240px;top:380px}
+  #st .logo-row b{font-size:38px}
+  #st .eyebrow{font-size:22px;margin-top:120px}
+  #st h1{font-size:140px;margin-top:34px}
+  #st .sub{font-size:31px;margin-top:40px;max-width:19ch}
+  #st .divide{grid-template-columns:1fr;margin-top:90px}
+  #st .rule{height:1px}
+  #st .tag{font-size:18px}
+  #st .side{padding:38px 36px}
+  #st .side h3{font-size:38px}
+  #st .side p{font-size:23px}
+  #st .rows{margin-top:44px}
+  #st .row{font-size:23px;padding:18px 22px}
+  #st .tid{font-size:17px;width:92px}
+  #st .av{width:38px;height:38px;font-size:15px}
+  #st .chip{font-size:17px;padding:5px 14px}
+  #st .btm{margin-top:auto;display:flex;flex-direction:column;gap:26px;align-items:flex-start}
+  #st .cta{font-size:28px;padding:20px 38px}
+  #st .foot{font-size:20px}
+</style>
+</head>
+<body>
+
+<!-- ============ SQUARE ============ -->
+<div class="ad" id="sq">
+  <div class="glow"></div>
+  <div class="logo-row">
+    <svg width="46" height="46" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#E8ECF5"/><rect x="7" y="13" width="4.5" height="12" rx="2.25" fill="#0A0F1C" fill-opacity=".5"/><rect x="13.75" y="7" width="4.5" height="18" rx="2.25" fill="#0A0F1C"/><rect x="20.5" y="16" width="4.5" height="9" rx="2.25" fill="#4F46E5"/></svg>
+    <b>Taskar</b>
+  </div>
+
+  <p class="eyebrow">Personal &amp; team task tracking</p>
+  <h1>Two spaces.<br><span class="muted">Never mixed.</span></h1>
+  <p class="sub">Switch to your team and your own work never disappears.</p>
+
+  <div class="divide">
+    <div class="side p">
+      <span class="tag"><i class="dot"></i>Personal</span>
+      <h3>Yours alone</h3>
+      <p>Private to you. No teammate sees it, ever.</p>
+    </div>
+    <div class="rule"></div>
+    <div class="side t">
+      <span class="tag"><i class="dot"></i>Team</span>
+      <h3>Shared by default</h3>
+      <p>One board everybody edits, together.</p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span class="cta">Open Taskar →</span>
+    <span>taskar-ecru.vercel.app</span>
+  </div>
+</div>
+
+<!-- ============ LANDSCAPE ============ -->
+<div class="ad" id="ls">
+  <div class="glow"></div>
+  <div>
+    <div class="logo-row">
+      <svg width="36" height="36" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#E8ECF5"/><rect x="7" y="13" width="4.5" height="12" rx="2.25" fill="#0A0F1C" fill-opacity=".5"/><rect x="13.75" y="7" width="4.5" height="18" rx="2.25" fill="#0A0F1C"/><rect x="20.5" y="16" width="4.5" height="9" rx="2.25" fill="#4F46E5"/></svg>
+      <b>Taskar</b>
+    </div>
+    <h1>Two spaces.<br><span class="muted">Never mixed.</span></h1>
+    <p class="sub">Your tasks stay private. Your team's stay shared. Both open at once.</p>
+    <p class="foot">taskar-ecru.vercel.app</p>
+  </div>
+
+  <div>
+    <div class="pillrow">
+      <span class="pill p">Personal</span>
+      <span class="pill t">Acme Studio</span>
+    </div>
+    <div class="rows">
+      <div class="row"><span class="tid">OB2B-14</span><span class="nm">Bank reconciliation</span><span class="chip">In progress</span></div>
+      <div class="row"><span class="tid">ACM-3</span><span class="nm">Ship the pricing page</span><div class="avs"><i class="av">W</i><i class="av">JD</i><i class="av">RM</i></div></div>
+      <div class="row"><span class="tid">ACM-7</span><span class="nm">Migrate auth keys</span><div class="avs"><i class="av">JD</i></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ STORY ============ -->
+<div class="ad" id="st">
+  <div class="glow"></div>
+  <div class="logo-row">
+    <svg width="52" height="52" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#E8ECF5"/><rect x="7" y="13" width="4.5" height="12" rx="2.25" fill="#0A0F1C" fill-opacity=".5"/><rect x="13.75" y="7" width="4.5" height="18" rx="2.25" fill="#0A0F1C"/><rect x="20.5" y="16" width="4.5" height="9" rx="2.25" fill="#4F46E5"/></svg>
+    <b>Taskar</b>
+  </div>
+
+  <p class="eyebrow">Personal &amp; team task tracking</p>
+  <h1>Two spaces.<br><span class="muted">Never mixed.</span></h1>
+  <p class="sub">Switch to your team and your own work never disappears.</p>
+
+  <div class="divide">
+    <div class="side p">
+      <span class="tag"><i class="dot"></i>Personal</span>
+      <h3>Yours alone</h3>
+      <p>Private to you. No teammate sees it, ever.</p>
+    </div>
+    <div class="rule"></div>
+    <div class="side t">
+      <span class="tag"><i class="dot"></i>Team</span>
+      <h3>Shared by default</h3>
+      <p>One board everybody edits, with real assignees.</p>
+    </div>
+  </div>
+
+  <div class="rows">
+    <div class="row"><span class="tid">ACM-3</span><span class="nm">Ship the pricing page</span><div class="avs"><i class="av">W</i><i class="av">JD</i></div></div>
+    <div class="row"><span class="tid">OB2B-14</span><span class="nm">Bank reconciliation</span><span class="chip">In progress</span></div>
+  </div>
+
+  <div class="btm">
+    <span class="cta">Open Taskar →</span>
+    <span class="foot">taskar-ecru.vercel.app</span>
+  </div>
+</div>
+
+</body>
+</html>
