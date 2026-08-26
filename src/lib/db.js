@@ -81,6 +81,7 @@ export async function getTeamMembersById(orgId) {
 }
 
 export function rowToTeamTask(row, membersById = {}) {
+  const assigneeIds = Array.isArray(row.assignee_ids) ? row.assignee_ids : [];
   return {
     id: row.id,
     ticketId: row.ticket_id,
@@ -89,8 +90,8 @@ export function rowToTeamTask(row, membersById = {}) {
     name: row.name,
     status: row.status,
     priority: row.priority,
-    assignee: row.assignee ? membersById[row.assignee] || "Unknown" : "Unassigned",
-    assigneeId: row.assignee,
+    assigneeIds,
+    assignees: assigneeIds.map((id) => ({ id, name: membersById[id] || "Unknown" })),
     startDate: row.start_date,
     targetDate: row.target_date,
     progress: row.progress,

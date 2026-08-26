@@ -8,29 +8,31 @@ import { useTasks } from "@/context/TaskContext";
 import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/Badge";
 import { ProgressBar } from "@/components/ProgressBar";
 import InlineField from "@/components/InlineField";
+import TeamAssigneePicker from "@/components/TeamAssigneePicker";
 import CommentThread from "@/components/CommentThread";
 import PageHeader from "@/components/PageHeader";
 import Breadcrumbs from "@/components/Breadcrumbs";
+import NoActiveTeam from "@/components/NoActiveTeam";
 import { generateTaskDoc, downloadMarkdown } from "@/lib/docGenerator";
 
-export default function TaskDetailPage() {
+export default function TeamTaskDetailPage() {
   return (
     <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400 dark:text-slate-500">Loading…</div>}>
-      <TaskDetailPageInner />
+      <TeamTaskDetailPageInner />
     </Suspense>
   );
 }
 
-function TaskDetailPageInner() {
+function TeamTaskDetailPageInner() {
   const { id } = useParams();
   const searchParams = useSearchParams();
-  const { personal: { tasks, comments, config, updateTask, addComment, deleteComment } } = useTasks();
+  const {
+    team: { tasks, comments, config, updateTask, addComment, deleteComment, members, orgId },
+  } = useTasks();
 
-  // Unsaved edits, keyed by field, vs. the saved task — Odoo-style: fields
-  // read/write through this diff instead of writing straight to storage, so
-  // Save/Discard only appear while it's non-empty and disappear again the
-  // moment every field matches its saved value (including a manual revert).
   const [pendingChanges, setPendingChanges] = useState({});
+
+  if (!orgId) return <NoActiveTeam title="Team Task" />;
 
   const task = tasks.find((t) => t.id === id);
 
@@ -38,8 +40,8 @@ function TaskDetailPageInner() {
     return (
       <div className="flex-1 p-8">
         <p className="text-sm text-slate-500 dark:text-slate-400">Task not found.</p>
-        <Link href="/tasks" className="text-sm text-slate-900 underline dark:text-slate-100">
-          Back to task table
+        <Link href="/team/tasks" className="text-sm text-slate-900 underline dark:text-slate-100">
+          Back to team task table
         </Link>
       </div>
     );
@@ -73,11 +75,8 @@ function TaskDetailPageInner() {
     setPendingChanges({});
   }
 
-  // Root of the breadcrumb trail: wherever this task was opened from
-  // (Task Table with its live filters, Board, or Auto Docs). Falls back to
-  // a plain Task Table link for a bookmarked/directly-pasted URL.
-  const from = searchParams.get("from") || "/tasks";
-  const fromLabel = searchParams.get("fromLabel") || "Task Table";
+  const from = searchParams.get("from") || "/team/tasks";
+  const fromLabel = searchParams.get("fromLabel") || "Team Task Table";
 
   const ancestors = [];
   let cursor = task.parentId ? tasks.find((t) => t.id === task.parentId) : null;
@@ -88,7 +87,7 @@ function TaskDetailPageInner() {
 
   function relatedTaskHref(taskId) {
     const params = new URLSearchParams({ from, fromLabel });
-    return `/tasks/${taskId}?${params.toString()}`;
+    return `/team/tasks/${taskId}?${params.toString()}`;
   }
 
   const breadcrumbItems = [
@@ -101,6 +100,8 @@ function TaskDetailPageInner() {
     const doc = generateTaskDoc(task, comments, tasks);
     downloadMarkdown(`${task.ticketId.replace(/[^a-z0-9-]/gi, "_")}.md`, doc);
   }
+
+  const pendingAssigneeIds = "assigneeIds" in pendingChanges ? pendingChanges.assigneeIds : task.assigneeIds;
 
   return (
     <div className="flex-1">
@@ -194,6 +195,7 @@ function TaskDetailPageInner() {
                 comments={comments}
                 addComment={addComment}
                 deleteComment={deleteComment}
+                showAuthorField={false}
               />
             </section>
 
@@ -230,13 +232,13 @@ function TaskDetailPageInner() {
               <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">Details</h2>
               <dl className="space-y-3 text-sm">
                 <div>
-                  <dt className="text-xs text-slate-400 dark:text-slate-500">Assignee</dt>
+                  <dt className="text-xs text-slate-400 dark:text-slate-500">Assignees</dt>
                   <dd className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">
-                    <InlineField
-                      type="select"
-                      value={effective("assignee") || "Unassigned"}
-                      options={["Unassigned", ...config.assignees]}
-                      onCommit={(v) => patchPending("assignee", v)}
+                    <TeamAssigneePicker
+                      members={members}
+                      selectedIds={pendingAssigneeIds || []}
+                      onChange={(ids) => patchPending("assigneeIds", ids)}
+                      inline
                     />
                   </dd>
                 </div>

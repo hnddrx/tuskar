@@ -34,8 +34,8 @@ const DEFAULT_LOCAL_PREFS = {
 };
 
 export default function JiraPage() {
-  const { mergeJiraIssues } = useTasks();
-  const { userId, orgId } = useAuth();
+  const { personal: { mergeJiraIssues } } = useTasks();
+  const { userId } = useAuth();
 
   const [status, setStatus] = useState(null); // GET /api/jira/config result
   const [form, setForm] = useState(EMPTY_FORM);
@@ -195,22 +195,6 @@ export default function JiraPage() {
     return () => timerRef.current && clearInterval(timerRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefs.autoImport, prefs.intervalMinutes, status?.configured]);
-
-  if (orgId) {
-    return (
-      <div className="flex-1">
-        <PageHeader
-          title="Jira Import"
-          subtitle="Jira import is only available in your personal space."
-        />
-        <div className="px-4 py-6 sm:px-8">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Switch to your Personal Account to configure or run a Jira import.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex-1">

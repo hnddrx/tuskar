@@ -7,7 +7,7 @@ import { DONE_STATUSES } from "@/lib/constants";
 import PageHeader from "@/components/PageHeader";
 
 export default function OverviewPage() {
-  const { tasks, comments } = useTasks();
+  const { personal: { tasks, comments } } = useTasks();
 
   const open = tasks.filter((t) => !DONE_STATUSES.includes(t.status));
   const done = tasks.filter((t) => DONE_STATUSES.includes(t.status));

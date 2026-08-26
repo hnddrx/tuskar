@@ -101,7 +101,7 @@ async function migrate() {
       name text not null,
       status text not null,
       priority text not null,
-      assignee text,
+      assignee_ids jsonb not null default '[]',
       start_date text,
       target_date text,
       progress integer not null default 0,
@@ -117,6 +117,23 @@ async function migrate() {
     )
   `;
   await sql`create index if not exists team_tasks_org_id_idx on team_tasks (org_id)`;
+
+  // Migrate a pre-existing team_tasks table from single `assignee` (a
+  // nullable Clerk user id) to the `assignee_ids` jsonb array above. Only
+  // runs against a table that still has the old column — a no-op on a
+  // fresh install, which already gets assignee_ids from the create above.
+  await sql`alter table team_tasks add column if not exists assignee_ids jsonb not null default '[]'`;
+  const [legacyAssigneeColumn] = await sql`
+    select 1 from information_schema.columns
+    where table_name = 'team_tasks' and column_name = 'assignee'
+  `;
+  if (legacyAssigneeColumn) {
+    await sql`
+      update team_tasks set assignee_ids = to_jsonb(array[assignee])
+      where assignee is not null and assignee_ids = '[]'::jsonb
+    `;
+    await sql`alter table team_tasks drop column assignee`;
+  }
 
   await sql`
     create table if not exists team_comments (

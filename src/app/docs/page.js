@@ -14,7 +14,7 @@ import PageHeader from "@/components/PageHeader";
 const DOCS_FROM = new URLSearchParams({ from: "/docs", fromLabel: "Auto Docs" }).toString();
 
 export default function DocsPage() {
-  const { tasks, comments } = useTasks();
+  const { personal: { tasks, comments } } = useTasks();
   const topLevel = useMemo(() => tasks.filter((t) => !t.parentId), [tasks]);
   const [previewId, setPreviewId] = useState(topLevel[0]?.id || null);
 

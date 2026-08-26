@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
+import TeamAssigneePicker from "@/components/TeamAssigneePicker";
 
 const EMPTY = {
   ticketId: "",
@@ -11,7 +12,7 @@ const EMPTY = {
   name: "",
   status: "",
   priority: "Normal",
-  assignee: "",
+  assigneeIds: [],
   startDate: "",
   targetDate: "",
   progress: 0,
@@ -20,8 +21,8 @@ const EMPTY = {
   jiraLink: "",
 };
 
-export default function TaskFormModal({ open, onClose, task = null }) {
-  const { personal: { config, addTask, updateTask, tasks } } = useTasks();
+export default function TeamTaskFormModal({ open, onClose, task = null }) {
+  const { team: { config, addTask, updateTask, tasks, members } } = useTasks();
   const [form, setForm] = useState(EMPTY);
   const isEdit = Boolean(task);
 
@@ -38,7 +39,7 @@ export default function TaskFormModal({ open, onClose, task = null }) {
               name: task.name,
               status: task.status,
               priority: task.priority,
-              assignee: task.assignee,
+              assigneeIds: task.assigneeIds || [],
               startDate: task.startDate || "",
               targetDate: task.targetDate || "",
               progress: task.progress || 0,
@@ -84,7 +85,7 @@ export default function TaskFormModal({ open, onClose, task = null }) {
       <div className="flex h-full w-full flex-col overflow-y-auto bg-white shadow-xl dark:bg-slate-900 sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            {isEdit ? `Edit ${task.ticketId}` : "New task"}
+            {isEdit ? `Edit ${task.ticketId}` : "New team task"}
           </h2>
           <button
             onClick={onClose}
@@ -186,18 +187,13 @@ export default function TaskFormModal({ open, onClose, task = null }) {
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-                Assignee
+                Assignees
               </label>
-              <select
-                value={form.assignee}
-                onChange={(e) => set("assignee", e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
-              >
-                <option value="">Unassigned</option>
-                {config.assignees.map((a) => (
-                  <option key={a}>{a}</option>
-                ))}
-              </select>
+              <TeamAssigneePicker
+                members={members}
+                selectedIds={form.assigneeIds}
+                onChange={(ids) => set("assigneeIds", ids)}
+              />
             </div>
           </div>
 

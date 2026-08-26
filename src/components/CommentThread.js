@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Trash2, Send } from "lucide-react";
-import { useTasks } from "@/context/TaskContext";
 import { SyncBadge } from "@/components/Badge";
 
 function formatTs(iso) {
@@ -18,8 +17,7 @@ function formatTs(iso) {
   }
 }
 
-export default function CommentThread({ taskId }) {
-  const { comments, addComment, deleteComment, orgId } = useTasks();
+export default function CommentThread({ taskId, comments, addComment, deleteComment, showAuthorField = true }) {
   const [text, setText] = useState("");
   const [author, setAuthor] = useState("Wren");
 
@@ -45,7 +43,7 @@ export default function CommentThread({ taskId }) {
           className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
         />
         <div className="flex items-center justify-between">
-          {!orgId && (
+          {showAuthorField && (
             <input
               value={author}
               onChange={(e) => setAuthor(e.target.value)}

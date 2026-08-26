@@ -9,7 +9,7 @@ import NoteEditor from "@/components/NoteEditor";
 function NewNoteInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { tasks } = useTasks();
+  const { personal: { tasks } } = useTasks();
   const [saveError, setSaveError] = useState(null);
   const type = searchParams.get("type") === "mom" ? "mom" : "freeform";
 

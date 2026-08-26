@@ -17,9 +17,10 @@ import { useConfirm } from "@/components/ConfirmProvider";
 
 const TaskContext = createContext(null);
 const IMPORT_OFFERED_KEY = "taskar:import-offered:v1";
+const EMPTY_TEAM_CONFIG = { statuses: [], priorities: [], types: [], assignees: [] };
 
-async function fetchState(orgId) {
-  const res = await fetch(orgId ? "/api/team/state" : "/api/state");
+async function fetchJson(url) {
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to load state (${res.status})`);
   return res.json();
 }
@@ -51,21 +52,41 @@ function readLegacyLocalState() {
   }
 }
 
+// Filters a set of member-id assignments down to ids that actually resolve
+// against the team's current membership. An id that doesn't resolve (e.g.
+// `members` hasn't loaded yet, or the person left the team) is dropped
+// rather than stored — assigneeIds and the resolved `assignees` shown in the
+// UI must never disagree about who's actually assigned.
+function resolveAssigneeIds(ids, members) {
+  const validIds = new Set(members.map((m) => m.id));
+  return (ids || []).filter((id) => validIds.has(id));
+}
+
+function resolveAssignees(ids, members) {
+  const byId = new Map(members.map((m) => [m.id, m.name]));
+  return ids.map((id) => ({ id, name: byId.get(id) || "Unknown" }));
+}
+
 export function TaskProvider({ children }) {
   const { isLoaded, isSignedIn, userId, orgId } = useAuth();
   const { user } = useUser();
   const confirm = useConfirm();
-  const [state, setState] = useState({
+
+  const [personal, setPersonal] = useState({
     tasks: seed.tasks,
     comments: seed.comments,
     config: seed.config,
   });
+  const [personalHydrated, setPersonalHydrated] = useState(false);
+  const lastUserIdRef = useRef(undefined);
+
+  const [team, setTeam] = useState({ tasks: [], comments: [], config: EMPTY_TEAM_CONFIG });
   const [members, setMembers] = useState([]);
-  const [hydrated, setHydrated] = useState(false);
+  const [teamHydrated, setTeamHydrated] = useState(false);
+  const lastOrgIdRef = useRef(undefined);
+
   const [syncError, setSyncError] = useState(null);
   const failedRequestRef = useRef(null);
-  const lastUserIdRef = useRef(undefined);
-  const lastOrgIdRef = useRef(undefined);
 
   const syncCall = useCallback((requestFn) => {
     requestFn()
@@ -86,146 +107,134 @@ export function TaskProvider({ children }) {
 
   const dismissSyncError = useCallback(() => setSyncError(null), []);
 
-  // Fetches team members and folds the result into state. Defined as a
-  // standalone, stable callback (not inlined in the load effect below) so
-  // it can double as the retryable request handed to `syncCall`: on the
-  // initial attempt we await it directly (so the result can land in the
-  // same pass as the tasks/comments state), and if that attempt fails we
-  // hand this exact function to `syncCall`, which is what every other sync
-  // failure in this file already uses to power the "Retry" button
-  // (`failedRequestRef.current`) and to self-clear `syncError` once a
-  // later call succeeds.
+  // Fetches team members and folds the result into team.config.assignees.
+  // A standalone stable callback (not inlined below) so it can double as
+  // the retryable request handed to `syncCall` on failure, and so it can
+  // discard a stale in-flight result if the active org changed underneath
+  // it (checked via lastOrgIdRef, which is updated synchronously before any
+  // async work starts in the effect below).
   const loadMembers = useCallback(async () => {
     const orgIdAtFetchStart = lastOrgIdRef.current;
     const list = await fetchMembers();
-    if (lastOrgIdRef.current !== orgIdAtFetchStart) {
-      // The active org changed while this request was in flight — discard
-      // rather than splice a stale org's members into the now-current org's
-      // state.
-      return list;
-    }
+    if (lastOrgIdRef.current !== orgIdAtFetchStart) return list;
     setMembers(list);
-    setState((s) => ({
-      ...s,
-      config: { ...s.config, assignees: list.map((m) => m.name) },
-    }));
+    setTeam((s) => ({ ...s, config: { ...s.config, assignees: list.map((m) => m.name) } }));
     return list;
   }, []);
 
-  // Load state from the server once signed in. Re-runs, resetting local
-  // state first, whenever the signed-in user OR the active Clerk
-  // organization changes (Clerk's account switcher and OrganizationSwitcher
-  // can both change context without a full page reload) — so a previous
-  // account's or team's data never lingers on screen. The one-time legacy
-  // localStorage import only applies to the personal space.
+  // Personal state loads once per signed-in user and is completely
+  // independent of the active Clerk organization — switching teams never
+  // touches it. Re-runs (resetting first) only when the signed-in user
+  // changes.
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
     let cancelled = false;
 
-    const identityChanged =
-      (lastUserIdRef.current !== undefined && lastUserIdRef.current !== userId) ||
-      (lastOrgIdRef.current !== undefined && lastOrgIdRef.current !== orgId);
-    if (identityChanged) {
-      setHydrated(false);
-      setState({ tasks: [], comments: [], config: seed.config });
-      setMembers([]);
+    const userChanged = lastUserIdRef.current !== undefined && lastUserIdRef.current !== userId;
+    if (userChanged) {
+      setPersonalHydrated(false);
+      setPersonal({ tasks: [], comments: [], config: seed.config });
     }
     lastUserIdRef.current = userId;
-    lastOrgIdRef.current = orgId;
 
     (async () => {
       try {
-        let server = await fetchState(orgId);
+        let server = await fetchJson("/api/state");
 
-        if (!orgId) {
-          const alreadyOffered = window.localStorage.getItem(IMPORT_OFFERED_KEY);
-          const legacy = alreadyOffered ? null : readLegacyLocalState();
-          if (!server.hasSynced && legacy && legacy.tasks.length > 0) {
-            const wantsImport = await confirm({
-              title: "Import existing tasks?",
-              message:
-                "This device has tasks saved locally from before cloud sync. Import them into your account now?",
-              confirmLabel: "Import",
-              cancelLabel: "Skip",
+        const alreadyOffered = window.localStorage.getItem(IMPORT_OFFERED_KEY);
+        const legacy = alreadyOffered ? null : readLegacyLocalState();
+        if (!server.hasSynced && legacy && legacy.tasks.length > 0) {
+          const wantsImport = await confirm({
+            title: "Import existing tasks?",
+            message:
+              "This device has tasks saved locally from before cloud sync. Import them into your account now?",
+            confirmLabel: "Import",
+            cancelLabel: "Skip",
+          });
+          window.localStorage.setItem(IMPORT_OFFERED_KEY, "1");
+          if (wantsImport) {
+            const res = await fetch("/api/state/import", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(legacy),
             });
-            window.localStorage.setItem(IMPORT_OFFERED_KEY, "1");
-            if (wantsImport) {
-              const res = await fetch("/api/state/import", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(legacy),
-              });
-              if (res.ok) {
-                server = await fetchState(orgId);
-              }
-            }
-          } else if (!alreadyOffered) {
-            window.localStorage.setItem(IMPORT_OFFERED_KEY, "1");
+            if (res.ok) server = await fetchJson("/api/state");
           }
-        }
-
-        let memberList = [];
-        if (orgId) {
-          try {
-            memberList = await fetchMembers();
-          } catch (err) {
-            // Don't let a members-fetch failure abort the whole load — the
-            // task/comment state above already succeeded. Only hand off to
-            // syncCall (which surfaces the error via the shared syncError
-            // banner and wires up Retry) if this effect run is still the
-            // current one — a superseded run (user already switched org or
-            // account again) must not raise a phantom error for a team the
-            // user has already navigated away from.
-            console.warn("Failed to load team members", err);
-            if (!cancelled) syncCall(loadMembers);
-          }
+        } else if (!alreadyOffered) {
+          window.localStorage.setItem(IMPORT_OFFERED_KEY, "1");
         }
 
         if (cancelled) return;
-        setState({
-          tasks: server.tasks,
-          comments: server.comments,
-          // Team config has no `assignees` key server-side (team assignees
-          // come from Clerk membership, not a hand-typed list — see Task 3).
-          // Synthesizing it here as the members' display names means every
-          // existing consumer that reads `config.assignees` (TaskFiltersPanel,
-          // the task detail page) keeps working unchanged: they filter/display
-          // by name, and `task.assignee` for a team task is already a
-          // resolved display name (see `rowToTeamTask`, Task 4).
-          config: orgId
-            ? { ...server.config, assignees: memberList.map((m) => m.name) }
-            : server.config,
-        });
-        setMembers(memberList);
+        setPersonal({ tasks: server.tasks, comments: server.comments, config: server.config });
       } catch (err) {
-        console.warn("Failed to load taskar state from server", err);
+        console.warn("Failed to load personal taskar state from server", err);
       } finally {
-        if (!cancelled) setHydrated(true);
+        if (!cancelled) setPersonalHydrated(true);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, isSignedIn, userId, orgId, confirm, syncCall, loadMembers]);
+  }, [isLoaded, isSignedIn, userId, confirm]);
+
+  // Team state loads whenever there's an active org, reloads on switching to
+  // a different team, and clears to empty when there's no active team
+  // (Personal Account selected) — independent of the personal effect above,
+  // so both can be loaded at once.
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    let cancelled = false;
+
+    const orgChanged = lastOrgIdRef.current !== undefined && lastOrgIdRef.current !== orgId;
+    if (orgChanged || !orgId) {
+      setTeamHydrated(false);
+      setTeam({ tasks: [], comments: [], config: EMPTY_TEAM_CONFIG });
+      setMembers([]);
+    }
+    lastOrgIdRef.current = orgId;
+
+    if (!orgId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTeamHydrated(true);
+      return;
+    }
+
+    (async () => {
+      try {
+        const server = await fetchJson("/api/team/state");
+        let memberList = [];
+        try {
+          memberList = await loadMembers();
+        } catch (err) {
+          console.warn("Failed to load team members", err);
+          if (!cancelled) syncCall(loadMembers);
+        }
+        if (cancelled) return;
+        setTeam({
+          tasks: server.tasks,
+          comments: server.comments,
+          config: { ...server.config, assignees: memberList.map((m) => m.name) },
+        });
+      } catch (err) {
+        console.warn("Failed to load team taskar state from server", err);
+      } finally {
+        if (!cancelled) setTeamHydrated(true);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, isSignedIn, orgId, syncCall, loadMembers]);
+
+  // ---------------------------------------------------------------------
+  // Personal mutators
+  // ---------------------------------------------------------------------
 
   const addTask = useCallback((task) => {
     const id = newId("task");
     const ts = nowIso();
-    let resolved;
-    if (!orgId) {
-      resolved = { assignee: task.assignee || "Unassigned", assigneeId: null };
-    } else {
-      // `assignee` and `assigneeId` must never disagree about whether
-      // someone is actually assigned: if the given id doesn't resolve to a
-      // known member (e.g. `members` hasn't loaded yet, or failed to load),
-      // treat it the same as no assignment on both fields rather than
-      // stamping a real id next to a display name of "Unassigned".
-      const match = task.assignee ? members.find((m) => m.id === task.assignee) : null;
-      resolved = match
-        ? { assignee: match.name, assigneeId: match.id }
-        : { assignee: "Unassigned", assigneeId: null };
-    }
     const record = {
       id,
       ticketId: task.ticketId?.trim() || "N/A",
@@ -234,7 +243,7 @@ export function TaskProvider({ children }) {
       name: task.name?.trim() || "Untitled task",
       status: task.status || "Not Started",
       priority: task.priority || "Normal",
-      ...resolved,
+      assignee: task.assignee || "Unassigned",
       startDate: task.startDate || null,
       targetDate: task.targetDate || null,
       progress: Number(task.progress) || 0,
@@ -247,10 +256,9 @@ export function TaskProvider({ children }) {
       createdAt: ts,
       updatedAt: ts,
     };
-    setState((s) => ({ ...s, tasks: [...s.tasks, record] }));
-    const base = orgId ? "/api/team/state/tasks" : "/api/state/tasks";
+    setPersonal((s) => ({ ...s, tasks: [...s.tasks, record] }));
     syncCall(() =>
-      fetch(base, {
+      fetch("/api/state/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(record),
@@ -259,25 +267,16 @@ export function TaskProvider({ children }) {
       })
     );
     return id;
-  }, [syncCall, orgId, members]);
+  }, [syncCall]);
 
   const updateTask = useCallback((id, patch) => {
-    const resolvedPatch = { ...patch };
-    if (orgId && "assignee" in patch) {
-      // Same rule as addTask: an unresolvable id must not leave assignee and
-      // assigneeId disagreeing about whether someone is assigned.
-      const match = patch.assignee ? members.find((m) => m.id === patch.assignee) : null;
-      resolvedPatch.assignee = match ? match.name : "Unassigned";
-      resolvedPatch.assigneeId = match ? match.id : null;
-    }
-    const fullPatch = { ...resolvedPatch, lastUpdate: todayIso(), updatedAt: nowIso() };
-    setState((s) => ({
+    const fullPatch = { ...patch, lastUpdate: todayIso(), updatedAt: nowIso() };
+    setPersonal((s) => ({
       ...s,
       tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...fullPatch } : t)),
     }));
-    const base = orgId ? `/api/team/state/tasks/${id}` : `/api/state/tasks/${id}`;
     syncCall(() =>
-      fetch(base, {
+      fetch(`/api/state/tasks/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(fullPatch),
@@ -285,23 +284,22 @@ export function TaskProvider({ children }) {
         if (!res.ok) throw new Error("Failed to update task");
       })
     );
-  }, [syncCall, orgId, members]);
+  }, [syncCall]);
 
   const deleteTask = useCallback((id) => {
-    setState((s) => ({
+    setPersonal((s) => ({
       ...s,
       tasks: s.tasks
         .filter((t) => t.id !== id)
         .map((t) => (t.parentId === id ? { ...t, parentId: null } : t)),
       comments: s.comments.filter((c) => c.ticketId !== id),
     }));
-    const base = orgId ? `/api/team/state/tasks/${id}` : `/api/state/tasks/${id}`;
     syncCall(() =>
-      fetch(base, { method: "DELETE" }).then((res) => {
+      fetch(`/api/state/tasks/${id}`, { method: "DELETE" }).then((res) => {
         if (!res.ok) throw new Error("Failed to delete task");
       })
     );
-  }, [syncCall, orgId]);
+  }, [syncCall]);
 
   const addComment = useCallback((taskId, { author, text, parentCommentId = null, jiraIssueLink = null, syncSource = "Manual" }) => {
     const id = newId("comment");
@@ -312,23 +310,20 @@ export function TaskProvider({ children }) {
       parentCommentId,
       created: ts,
       updated: ts,
-      author: orgId
-        ? user?.fullName || user?.primaryEmailAddress?.emailAddress || "You"
-        : author || "Me",
+      author: author || "Me",
       text: text || "",
       jiraIssueLink,
       syncSource,
     };
-    setState((s) => ({
+    setPersonal((s) => ({
       ...s,
       comments: [...s.comments, record],
       tasks: s.tasks.map((t) =>
         t.id === taskId ? { ...t, commentCount: (t.commentCount || 0) + 1 } : t
       ),
     }));
-    const base = orgId ? "/api/team/state/comments" : "/api/state/comments";
     syncCall(() =>
-      fetch(base, {
+      fetch("/api/state/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(record),
@@ -337,10 +332,10 @@ export function TaskProvider({ children }) {
       })
     );
     return id;
-  }, [syncCall, orgId, user]);
+  }, [syncCall]);
 
   const deleteComment = useCallback((commentId, taskId) => {
-    setState((s) => ({
+    setPersonal((s) => ({
       ...s,
       comments: s.comments.filter((c) => c.id !== commentId),
       tasks: s.tasks.map((t) =>
@@ -349,21 +344,19 @@ export function TaskProvider({ children }) {
           : t
       ),
     }));
-    const base = orgId
-      ? `/api/team/state/comments/${commentId}?taskId=${encodeURIComponent(taskId)}`
-      : `/api/state/comments/${commentId}?taskId=${encodeURIComponent(taskId)}`;
     syncCall(() =>
-      fetch(base, { method: "DELETE" }).then((res) => {
+      fetch(`/api/state/comments/${commentId}?taskId=${encodeURIComponent(taskId)}`, {
+        method: "DELETE",
+      }).then((res) => {
         if (!res.ok) throw new Error("Failed to delete comment");
       })
     );
-  }, [syncCall, orgId]);
+  }, [syncCall]);
 
   const updateConfig = useCallback((key, values) => {
-    setState((s) => ({ ...s, config: { ...s.config, [key]: values } }));
-    const base = orgId ? "/api/team/state/config" : "/api/state/config";
+    setPersonal((s) => ({ ...s, config: { ...s.config, [key]: values } }));
     syncCall(() =>
-      fetch(base, {
+      fetch("/api/state/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key, values }),
@@ -371,17 +364,15 @@ export function TaskProvider({ children }) {
         if (!res.ok) throw new Error("Failed to update config");
       })
     );
-  }, [syncCall, orgId]);
+  }, [syncCall]);
 
   // Merge Jira-sourced issues (one-way pull). Matches by ticketId; creates new
   // tasks for issues we haven't seen, updates Jira-owned fields on existing
   // ones, and never touches tasks whose syncSource is "Manual". Reads
-  // `state.tasks` directly (not via a setState updater) so the same records
-  // used to update local state are the ones sent to the API. Personal-only —
-  // Jira import into a team board is out of scope for this phase.
+  // `personal.tasks` directly (not via a setState updater) so the same
+  // records used to update local state are the ones sent to the API.
   const mergeJiraIssues = useCallback((issues) => {
-    if (orgId) return { created: 0, updated: 0 };
-    const byTicket = new Map(state.tasks.map((t) => [t.ticketId, t]));
+    const byTicket = new Map(personal.tasks.map((t) => [t.ticketId, t]));
     const toCreate = [];
     const toUpdate = [];
     const ts = nowIso();
@@ -430,10 +421,10 @@ export function TaskProvider({ children }) {
 
     const updateById = new Map(toUpdate.map((t) => [t.id, t]));
     const nextTasks = [
-      ...state.tasks.map((t) => updateById.get(t.id) || t),
+      ...personal.tasks.map((t) => updateById.get(t.id) || t),
       ...toCreate,
     ];
-    setState((s) => ({ ...s, tasks: nextTasks }));
+    setPersonal((s) => ({ ...s, tasks: nextTasks }));
 
     for (const task of toCreate) {
       syncCall(() =>
@@ -459,47 +450,201 @@ export function TaskProvider({ children }) {
     }
 
     return { created: toCreate.length, updated: toUpdate.length };
-  }, [state.tasks, syncCall, orgId]);
+  }, [personal.tasks, syncCall]);
 
-  // Demo-data reset. Personal-only — a team board has no seed content.
   const resetToSeed = useCallback(() => {
-    if (orgId) return;
-    setState({ tasks: seed.tasks, comments: seed.comments, config: seed.config });
+    setPersonal({ tasks: seed.tasks, comments: seed.comments, config: seed.config });
     syncCall(() =>
       fetch("/api/state/reset", { method: "POST" }).then((res) => {
         if (!res.ok) throw new Error("Failed to reset data");
       })
     );
-  }, [syncCall, orgId]);
+  }, [syncCall]);
+
+  // ---------------------------------------------------------------------
+  // Team mutators
+  // ---------------------------------------------------------------------
+
+  const addTeamTask = useCallback((task) => {
+    const id = newId("task");
+    const ts = nowIso();
+    const assigneeIds = resolveAssigneeIds(task.assigneeIds, members);
+    const record = {
+      id,
+      ticketId: task.ticketId?.trim() || "N/A",
+      parentId: task.parentId || null,
+      type: task.type || "Task",
+      name: task.name?.trim() || "Untitled task",
+      status: task.status || "Not Started",
+      priority: task.priority || "Normal",
+      assigneeIds,
+      assignees: resolveAssignees(assigneeIds, members),
+      startDate: task.startDate || null,
+      targetDate: task.targetDate || null,
+      progress: Number(task.progress) || 0,
+      lastUpdate: todayIso(),
+      description: task.description || "",
+      githubBranch: task.githubBranch || "N/A",
+      jiraLink: task.jiraLink || null,
+      commentCount: 0,
+      syncSource: task.syncSource || "Manual",
+      createdAt: ts,
+      updatedAt: ts,
+    };
+    setTeam((s) => ({ ...s, tasks: [...s.tasks, record] }));
+    syncCall(() =>
+      fetch("/api/team/state/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(record),
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to save task");
+      })
+    );
+    return id;
+  }, [syncCall, members]);
+
+  const updateTeamTask = useCallback((id, patch) => {
+    const resolvedPatch = { ...patch };
+    if ("assigneeIds" in patch) {
+      const assigneeIds = resolveAssigneeIds(patch.assigneeIds, members);
+      resolvedPatch.assigneeIds = assigneeIds;
+      resolvedPatch.assignees = resolveAssignees(assigneeIds, members);
+    }
+    const fullPatch = { ...resolvedPatch, lastUpdate: todayIso(), updatedAt: nowIso() };
+    setTeam((s) => ({
+      ...s,
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...fullPatch } : t)),
+    }));
+    syncCall(() =>
+      fetch(`/api/team/state/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(fullPatch),
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to update task");
+      })
+    );
+  }, [syncCall, members]);
+
+  const deleteTeamTask = useCallback((id) => {
+    setTeam((s) => ({
+      ...s,
+      tasks: s.tasks
+        .filter((t) => t.id !== id)
+        .map((t) => (t.parentId === id ? { ...t, parentId: null } : t)),
+      comments: s.comments.filter((c) => c.ticketId !== id),
+    }));
+    syncCall(() =>
+      fetch(`/api/team/state/tasks/${id}`, { method: "DELETE" }).then((res) => {
+        if (!res.ok) throw new Error("Failed to delete task");
+      })
+    );
+  }, [syncCall]);
+
+  const addTeamComment = useCallback((taskId, { text, parentCommentId = null, jiraIssueLink = null, syncSource = "Manual" }) => {
+    const id = newId("comment");
+    const ts = nowIso();
+    const record = {
+      id,
+      ticketId: taskId,
+      parentCommentId,
+      created: ts,
+      updated: ts,
+      author: user?.fullName || user?.primaryEmailAddress?.emailAddress || "You",
+      text: text || "",
+      jiraIssueLink,
+      syncSource,
+    };
+    setTeam((s) => ({
+      ...s,
+      comments: [...s.comments, record],
+      tasks: s.tasks.map((t) =>
+        t.id === taskId ? { ...t, commentCount: (t.commentCount || 0) + 1 } : t
+      ),
+    }));
+    syncCall(() =>
+      fetch("/api/team/state/comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(record),
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to save comment");
+      })
+    );
+    return id;
+  }, [syncCall, user]);
+
+  const deleteTeamComment = useCallback((commentId, taskId) => {
+    setTeam((s) => ({
+      ...s,
+      comments: s.comments.filter((c) => c.id !== commentId),
+      tasks: s.tasks.map((t) =>
+        t.id === taskId
+          ? { ...t, commentCount: Math.max(0, (t.commentCount || 0) - 1) }
+          : t
+      ),
+    }));
+    syncCall(() =>
+      fetch(`/api/team/state/comments/${commentId}?taskId=${encodeURIComponent(taskId)}`, {
+        method: "DELETE",
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to delete comment");
+      })
+    );
+  }, [syncCall]);
+
+  const updateTeamConfig = useCallback((key, values) => {
+    setTeam((s) => ({ ...s, config: { ...s.config, [key]: values } }));
+    syncCall(() =>
+      fetch("/api/team/state/config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key, values }),
+      }).then((res) => {
+        if (!res.ok) throw new Error("Failed to update config");
+      })
+    );
+  }, [syncCall]);
 
   const value = useMemo(
     () => ({
-      tasks: state.tasks,
-      comments: state.comments,
-      config: state.config,
-      orgId,
-      members,
-      hydrated,
+      personal: {
+        tasks: personal.tasks,
+        comments: personal.comments,
+        config: personal.config,
+        hydrated: personalHydrated,
+        addTask,
+        updateTask,
+        deleteTask,
+        addComment,
+        deleteComment,
+        updateConfig,
+        mergeJiraIssues,
+        resetToSeed,
+      },
+      team: {
+        tasks: team.tasks,
+        comments: team.comments,
+        config: team.config,
+        members,
+        orgId,
+        hydrated: teamHydrated,
+        addTask: addTeamTask,
+        updateTask: updateTeamTask,
+        deleteTask: deleteTeamTask,
+        addComment: addTeamComment,
+        deleteComment: deleteTeamComment,
+        updateConfig: updateTeamConfig,
+      },
+      hydrated: personalHydrated && teamHydrated,
       syncError,
       retrySync,
       dismissSyncError,
-      addTask,
-      updateTask,
-      deleteTask,
-      addComment,
-      deleteComment,
-      updateConfig,
-      mergeJiraIssues,
-      resetToSeed,
     }),
     [
-      state,
-      orgId,
-      members,
-      hydrated,
-      syncError,
-      retrySync,
-      dismissSyncError,
+      personal,
+      personalHydrated,
       addTask,
       updateTask,
       deleteTask,
@@ -508,6 +653,19 @@ export function TaskProvider({ children }) {
       updateConfig,
       mergeJiraIssues,
       resetToSeed,
+      team,
+      members,
+      orgId,
+      teamHydrated,
+      addTeamTask,
+      updateTeamTask,
+      deleteTeamTask,
+      addTeamComment,
+      deleteTeamComment,
+      updateTeamConfig,
+      syncError,
+      retrySync,
+      dismissSyncError,
     ]
   );
 

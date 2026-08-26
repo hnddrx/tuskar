@@ -16,8 +16,9 @@ import { useTasks } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/Badge";
 import { ProgressBar } from "@/components/ProgressBar";
-import TaskFormModal from "@/components/TaskFormModal";
+import TeamTaskFormModal from "@/components/TeamTaskFormModal";
 import PageHeader from "@/components/PageHeader";
+import NoActiveTeam from "@/components/NoActiveTeam";
 import ColumnsPicker from "@/components/ColumnsPicker";
 import TaskFiltersPanel, {
   DEFAULT_FILTERS,
@@ -25,19 +26,19 @@ import TaskFiltersPanel, {
 } from "@/components/TaskFiltersPanel";
 
 const PAGE_SIZES = [10, 25, 50, 100];
-const COLUMNS_STORAGE_KEY = "taskar:columns:v1";
+const COLUMNS_STORAGE_KEY = "taskar:team-columns:v1";
 
-// Full set of columns the Task Table can show. Ticket/Task are always
-// visible (required: true); everything else is optional and toggled via the
-// "Columns" picker. Order here is the fixed render order regardless of the
-// order columns were turned on.
+function assigneeNames(t) {
+  return t.assignees?.length ? t.assignees.map((a) => a.name) : [];
+}
+
 const ALL_COLUMNS = [
   { key: "ticketId", label: "Ticket", required: true },
   { key: "name", label: "Task", required: true },
   { key: "type", label: "Type" },
   { key: "status", label: "Status" },
   { key: "priority", label: "Priority" },
-  { key: "assignee", label: "Assignee" },
+  { key: "assignee", label: "Assignees" },
   { key: "startDate", label: "Start date" },
   { key: "targetDate", label: "Target date" },
   { key: "progress", label: "Progress" },
@@ -99,7 +100,7 @@ const CELL_DEFS = {
   },
   assignee: {
     className: "whitespace-nowrap px-4 py-2.5 text-slate-600 dark:text-slate-400",
-    render: (t) => t.assignee,
+    render: (t) => (assigneeNames(t).length ? assigneeNames(t).join(", ") : "Unassigned"),
   },
   startDate: {
     className: "whitespace-nowrap px-4 py-2.5 text-slate-500 dark:text-slate-400",
@@ -150,9 +151,6 @@ const CELL_DEFS = {
 const SORT_DEFAULT = { key: "lastUpdate", dir: "desc" };
 const PAGE_SIZE_DEFAULT = 25;
 
-// Task Table's search/filters/sort/page/pageSize live in the URL (not
-// useState) so the exact view survives navigation and browser back/forward
-// — see docs/superpowers/specs/2026-08-24-breadcrumb-navigation-design.md.
 function parseTasksSearchParams(searchParams) {
   return {
     query: searchParams.get("q") || "",
@@ -207,19 +205,22 @@ function compareValues(a, b, key) {
   if (key === "createdAt") {
     return (a.createdAt || "") < (b.createdAt || "") ? -1 : 1;
   }
+  if (key === "assignee") {
+    return normalize(assigneeNames(a).join(", ")) < normalize(assigneeNames(b).join(", ")) ? -1 : 1;
+  }
   return normalize(a[key]) < normalize(b[key]) ? -1 : 1;
 }
 
-export default function TasksPage() {
+export default function TeamTasksPage() {
   return (
     <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400 dark:text-slate-500">Loading…</div>}>
-      <TasksPageInner />
+      <TeamTasksPageInner />
     </Suspense>
   );
 }
 
-function TasksPageInner() {
-  const { personal: { tasks, comments, config, deleteTask } } = useTasks();
+function TeamTasksPageInner() {
+  const { team: { tasks, comments, config, deleteTask, orgId } } = useTasks();
   const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -233,25 +234,21 @@ function TasksPageInner() {
   const [visibleKeys, setVisibleKeys] = useState(DEFAULT_VISIBLE_KEYS);
   const [columnsHydrated, setColumnsHydrated] = useState(false);
 
-  // Push a partial state patch into the URL via replace (no new history
-  // entry, no scroll jump) so browser back/forward still behaves normally.
   function pushState(patch) {
     const next = { query, filters, sort, page, pageSize, ...patch };
     const qs = buildTasksSearch(next);
-    router.replace(qs ? `/tasks?${qs}` : "/tasks", { scroll: false });
+    router.replace(qs ? `/team/tasks?${qs}` : "/team/tasks", { scroll: false });
   }
 
   const listSearch = searchParams.toString();
   const fromParams = new URLSearchParams({
-    from: listSearch ? `/tasks?${listSearch}` : "/tasks",
-    fromLabel: "Task Table",
+    from: listSearch ? `/team/tasks?${listSearch}` : "/team/tasks",
+    fromLabel: "Team Task Table",
   }).toString();
   function taskHref(id) {
-    return `/tasks/${id}?${fromParams}`;
+    return `/team/tasks/${id}?${fromParams}`;
   }
 
-  // Load/persist the chosen optional columns per-browser, same pattern as
-  // the rest of this app's localStorage-backed state.
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(COLUMNS_STORAGE_KEY);
@@ -298,7 +295,10 @@ function TasksPageInner() {
       if (filters.statuses.length && !filters.statuses.includes(t.status)) return false;
       if (filters.priorities.length && !filters.priorities.includes(t.priority))
         return false;
-      if (filters.assignees.length && !filters.assignees.includes(t.assignee))
+      if (
+        filters.assignees.length &&
+        !assigneeNames(t).some((n) => filters.assignees.includes(n))
+      )
         return false;
       if (filters.source === "jira" && t.syncSource !== "Jira") return false;
       if (filters.source === "manual" && t.syncSource === "Jira") return false;
@@ -319,7 +319,7 @@ function TasksPageInner() {
           t.ticketId,
           t.name,
           t.description,
-          t.assignee,
+          ...assigneeNames(t),
           t.status,
           t.priority,
           ...(commentsByTask.get(t.id) || []),
@@ -370,13 +370,15 @@ function TasksPageInner() {
     setModalOpen(true);
   }
 
+  if (!orgId) return <NoActiveTeam title="Team Task Table" />;
+
   const hasActiveQuery = query.trim().length > 0;
   const activeFilterCount = countActiveFilters(filters);
 
   return (
     <div className="flex-1">
       <PageHeader
-        title="Task Table"
+        title="Team Task Table"
         subtitle={`${sorted.length} of ${tasks.length} task${tasks.length === 1 ? "" : "s"}`}
         actions={
           <button
@@ -449,7 +451,6 @@ function TasksPageInner() {
       </PageHeader>
 
       <div className="px-4 py-6 sm:px-8">
-        {/* Desktop / tablet table */}
         <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none md:block dark:border-slate-800 dark:bg-slate-900">
           <table className="w-full min-w-[1100px] text-sm">
             <thead>
@@ -530,7 +531,6 @@ function TasksPageInner() {
           </table>
         </div>
 
-        {/* Mobile card list */}
         <div className="space-y-2 md:hidden">
           {pageItems.map((t) => {
             const parent = t.parentId ? tasksById.get(t.parentId) : null;
@@ -559,7 +559,7 @@ function TasksPageInner() {
                 </div>
                 <ProgressBar value={t.progress} className="mb-2" />
                 <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                  <span>{t.assignee}</span>
+                  <span>{assigneeNames(t).length ? assigneeNames(t).join(", ") : "Unassigned"}</span>
                   <span>{t.targetDate || "No target date"}</span>
                 </div>
               </Link>
@@ -572,7 +572,6 @@ function TasksPageInner() {
           )}
         </div>
 
-        {/* Pagination */}
         {sorted.length > 0 && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500 dark:text-slate-400">
             <p>
@@ -602,7 +601,7 @@ function TasksPageInner() {
         )}
       </div>
 
-      <TaskFormModal
+      <TeamTaskFormModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         task={editing}

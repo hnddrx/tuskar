@@ -28,7 +28,7 @@ export async function PATCH(request, { params }) {
       name = ${merged.name},
       status = ${merged.status},
       priority = ${merged.priority},
-      assignee = ${merged.assigneeId ?? null},
+      assignee_ids = ${JSON.stringify(merged.assigneeIds || [])}::jsonb,
       start_date = ${merged.startDate || null},
       target_date = ${merged.targetDate || null},
       progress = ${merged.progress || 0},

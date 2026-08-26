@@ -6,16 +6,19 @@ import { Plus } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
 import { PriorityBadge, SyncBadge } from "@/components/Badge";
 import { ProgressBar } from "@/components/ProgressBar";
-import TaskFormModal from "@/components/TaskFormModal";
+import TeamTaskFormModal from "@/components/TeamTaskFormModal";
 import PageHeader from "@/components/PageHeader";
+import NoActiveTeam from "@/components/NoActiveTeam";
 import { DONE_STATUSES } from "@/lib/constants";
 
-const BOARD_FROM = new URLSearchParams({ from: "/board", fromLabel: "Board" }).toString();
+const BOARD_FROM = new URLSearchParams({ from: "/team/board", fromLabel: "Team Board" }).toString();
 
-export default function BoardPage() {
-  const { personal: { tasks, config, updateTask } } = useTasks();
+export default function TeamBoardPage() {
+  const { team: { tasks, config, updateTask, orgId } } = useTasks();
   const [modalOpen, setModalOpen] = useState(false);
   const [dragId, setDragId] = useState(null);
+
+  if (!orgId) return <NoActiveTeam title="Team Board" />;
 
   const columns = config.statuses;
 
@@ -29,7 +32,7 @@ export default function BoardPage() {
   return (
     <div className="flex-1">
       <PageHeader
-        title="Board"
+        title="Team Board"
         subtitle="Drag a card to change its status."
         actions={
           <button
@@ -65,7 +68,7 @@ export default function BoardPage() {
                   {items.map((t) => (
                     <Link
                       key={t.id}
-                      href={`/tasks/${t.id}?${BOARD_FROM}`}
+                      href={`/team/tasks/${t.id}?${BOARD_FROM}`}
                       draggable
                       onDragStart={() => setDragId(t.id)}
                       className={`block cursor-grab rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:border-slate-300 active:cursor-grabbing transition-colors dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600 ${
@@ -84,7 +87,7 @@ export default function BoardPage() {
                       <ProgressBar value={t.progress} className="mb-2" />
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {t.assignee}
+                          {t.assignees?.length ? t.assignees.map((a) => a.name).join(", ") : "Unassigned"}
                         </span>
                         <SyncBadge source={t.syncSource} />
                       </div>
@@ -102,7 +105,7 @@ export default function BoardPage() {
         </div>
       </div>
 
-      <TaskFormModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <TeamTaskFormModal open={modalOpen} onClose={() => setModalOpen(false)} />
     </div>
   );
 }

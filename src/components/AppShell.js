@@ -14,6 +14,7 @@ import {
   BookOpenText,
   Menu,
   X,
+  Users,
 } from "lucide-react";
 import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
@@ -25,6 +26,8 @@ const NAV = [
   { href: "/notes", label: "Notes", icon: NotebookText },
   { href: "/tasks", label: "Task Table", icon: Table2 },
   { href: "/board", label: "Board", icon: KanbanSquare },
+  { href: "/team/tasks", label: "Team Tasks", icon: Users },
+  { href: "/team/board", label: "Team Board", icon: KanbanSquare },
   { href: "/docs", label: "Auto Docs", icon: FileText },
   { href: "/jira", label: "Jira Import", icon: Link2 },
   { href: "/config", label: "Configuration", icon: Settings2 },
@@ -112,7 +115,13 @@ function SyncErrorBanner({ error, onRetry, onDismiss }) {
 
 export default function AppShell({ children }) {
   const pathname = usePathname();
-  const { tasks, hydrated, syncError, retrySync, dismissSyncError } = useTasks();
+  const {
+    personal: { tasks },
+    hydrated,
+    syncError,
+    retrySync,
+    dismissSyncError,
+  } = useTasks();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Close the mobile drawer whenever the route changes.

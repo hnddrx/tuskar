@@ -21,7 +21,7 @@ const TYPE_FILTERS = [
 const VIEW_KEY = "taskar:notes-view:v1";
 
 export default function NotesPage() {
-  const { tasks } = useTasks();
+  const { personal: { tasks } } = useTasks();
   const { userId } = useAuth();
   const confirm = useConfirm();
   const [notes, setNotes] = useState([]);

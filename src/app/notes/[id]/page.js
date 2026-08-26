@@ -10,7 +10,7 @@ import NoteEditor from "@/components/NoteEditor";
 export default function NoteDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { tasks, addTask } = useTasks();
+  const { personal: { tasks, addTask } } = useTasks();
   const { userId } = useAuth();
   const confirm = useConfirm();
   const [note, setNote] = useState(null);
