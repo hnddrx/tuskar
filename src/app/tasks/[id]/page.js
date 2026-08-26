@@ -24,7 +24,7 @@ export default function TaskDetailPage() {
 function TaskDetailPageInner() {
   const { id } = useParams();
   const searchParams = useSearchParams();
-  const { tasks, comments, config, updateTask } = useTasks();
+  const { tasks, comments, config, updateTask, orgId, members } = useTasks();
 
   // Unsaved edits, keyed by field, vs. the saved task — Odoo-style: fields
   // read/write through this diff instead of writing straight to storage, so
@@ -229,8 +229,16 @@ function TaskDetailPageInner() {
                   <dd className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">
                     <InlineField
                       type="select"
-                      value={effective("assignee") || "Unassigned"}
-                      options={["Unassigned", ...config.assignees]}
+                      value={
+                        orgId
+                          ? ("assignee" in pendingChanges ? pendingChanges.assignee : task.assigneeId) || ""
+                          : effective("assignee") || "Unassigned"
+                      }
+                      options={
+                        orgId
+                          ? [{ label: "Unassigned", value: "" }, ...members.map((m) => ({ label: m.name, value: m.id }))]
+                          : ["Unassigned", ...config.assignees]
+                      }
                       onCommit={(v) => patchPending("assignee", v)}
                     />
                   </dd>

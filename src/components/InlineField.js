@@ -53,11 +53,14 @@ export default function InlineField({
           onBlur={() => setEditing(false)}
           className={inputBase}
         >
-          {options.map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
+          {options.map((o) => {
+            const opt = typeof o === "object" && o !== null ? o : { label: o, value: o };
+            return (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            );
+          })}
         </select>
       );
     }

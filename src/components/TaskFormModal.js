@@ -21,7 +21,7 @@ const EMPTY = {
 };
 
 export default function TaskFormModal({ open, onClose, task = null }) {
-  const { config, addTask, updateTask, tasks } = useTasks();
+  const { config, addTask, updateTask, tasks, orgId, members } = useTasks();
   const [form, setForm] = useState(EMPTY);
   const isEdit = Boolean(task);
 
@@ -38,7 +38,7 @@ export default function TaskFormModal({ open, onClose, task = null }) {
               name: task.name,
               status: task.status,
               priority: task.priority,
-              assignee: task.assignee,
+              assignee: orgId ? task.assigneeId || "" : task.assignee,
               startDate: task.startDate || "",
               targetDate: task.targetDate || "",
               progress: task.progress || 0,
@@ -194,9 +194,13 @@ export default function TaskFormModal({ open, onClose, task = null }) {
                 className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               >
                 <option value="">Unassigned</option>
-                {config.assignees.map((a) => (
-                  <option key={a}>{a}</option>
-                ))}
+                {orgId
+                  ? members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))
+                  : config.assignees.map((a) => <option key={a}>{a}</option>)}
               </select>
             </div>
           </div>
