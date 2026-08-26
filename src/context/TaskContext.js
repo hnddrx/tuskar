@@ -86,6 +86,25 @@ export function TaskProvider({ children }) {
 
   const dismissSyncError = useCallback(() => setSyncError(null), []);
 
+  // Fetches team members and folds the result into state. Defined as a
+  // standalone, stable callback (not inlined in the load effect below) so
+  // it can double as the retryable request handed to `syncCall`: on the
+  // initial attempt we await it directly (so the result can land in the
+  // same pass as the tasks/comments state), and if that attempt fails we
+  // hand this exact function to `syncCall`, which is what every other sync
+  // failure in this file already uses to power the "Retry" button
+  // (`failedRequestRef.current`) and to self-clear `syncError` once a
+  // later call succeeds.
+  const loadMembers = useCallback(async () => {
+    const list = await fetchMembers();
+    setMembers(list);
+    setState((s) => ({
+      ...s,
+      config: { ...s.config, assignees: list.map((m) => m.name) },
+    }));
+    return list;
+  }, []);
+
   // Load state from the server once signed in. Re-runs, resetting local
   // state first, whenever the signed-in user OR the active Clerk
   // organization changes (Clerk's account switcher and OrganizationSwitcher
@@ -144,12 +163,14 @@ export function TaskProvider({ children }) {
             memberList = await fetchMembers();
           } catch (err) {
             // Don't let a members-fetch failure abort the whole load — the
-            // task/comment state above already succeeded. Surface it through
-            // the same syncError channel other sync failures use, so the
-            // banner in AppShell tells the user something's wrong instead of
-            // silently treating the team as empty.
+            // task/comment state above already succeeded. Only hand off to
+            // syncCall (which surfaces the error via the shared syncError
+            // banner and wires up Retry) if this effect run is still the
+            // current one — a superseded run (user already switched org or
+            // account again) must not raise a phantom error for a team the
+            // user has already navigated away from.
             console.warn("Failed to load team members", err);
-            setSyncError(err.message || "Failed to load team members");
+            if (!cancelled) syncCall(loadMembers);
           }
         }
 
@@ -179,7 +200,7 @@ export function TaskProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, isSignedIn, userId, orgId, confirm]);
+  }, [isLoaded, isSignedIn, userId, orgId, confirm, syncCall, loadMembers]);
 
   const addTask = useCallback((task) => {
     const id = newId("task");
