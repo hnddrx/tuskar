@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // Instead, the latest `onResult` is tracked in a ref that the long-lived
 // recognition object reads from, so the caller can freely pass a new
 // closure each render.
-export function useSpeechDictation(onResult) {
+export function useSpeechDictation(onResult, lang) {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
   const onResultRef = useRef(onResult);
@@ -27,13 +27,16 @@ export function useSpeechDictation(onResult) {
     typeof window !== "undefined" &&
     Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
 
+  const effectiveLang =
+    lang || (typeof navigator !== "undefined" && navigator.language) || "en-US";
+
   useEffect(() => {
     if (!supported) return;
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = false;
-    recognition.lang = "en-US";
+    recognition.lang = effectiveLang;
 
     recognition.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -48,7 +51,10 @@ export function useSpeechDictation(onResult) {
 
     recognitionRef.current = recognition;
     return () => recognition.stop();
-  }, [supported]);
+    // Recreates recognition (stopping any in-progress session) whenever the
+    // dictation language changes, since SpeechRecognition can't switch
+    // languages mid-session.
+  }, [supported, effectiveLang]);
 
   const toggle = useCallback(() => {
     if (!recognitionRef.current) return;

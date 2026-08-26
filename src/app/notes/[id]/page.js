@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ConfirmProvider";
 import NoteEditor from "@/components/NoteEditor";
@@ -10,14 +11,25 @@ export default function NoteDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { tasks, addTask } = useTasks();
+  const { userId } = useAuth();
   const confirm = useConfirm();
   const [note, setNote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState(null);
   const lastPatchRef = useRef(null);
+  const lastUserIdRef = useRef(undefined);
 
   useEffect(() => {
     let cancelled = false;
+
+    // Switched accounts without a full page reload — clear the previous
+    // account's note immediately so it never lingers on screen.
+    if (lastUserIdRef.current !== undefined && lastUserIdRef.current !== userId) {
+      setNote(null);
+      setLoading(true);
+    }
+    lastUserIdRef.current = userId;
+
     fetch(`/api/notes/${id}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -29,7 +41,7 @@ export default function NoteDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, userId]);
 
   async function savePatch(patch) {
     lastPatchRef.current = patch;
@@ -114,6 +126,7 @@ export default function NoteDetailPage() {
         onSave={savePatch}
         onDelete={handleDelete}
         onConvertActionItem={handleConvertActionItem}
+        onAttachmentsChange={setNote}
         breadcrumbs={[
           { label: "Notes", href: "/notes" },
           { label: note.title || "Untitled note" },

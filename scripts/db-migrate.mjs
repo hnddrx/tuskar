@@ -83,10 +83,12 @@ async function migrate() {
       attendees jsonb not null default '[]',
       agenda jsonb not null default '[]',
       action_items jsonb not null default '[]',
+      attachments jsonb not null default '[]',
       created_at text not null,
       updated_at text not null
     )
   `;
+  await sql`alter table notes add column if not exists attachments jsonb not null default '[]'`;
   await sql`create index if not exists notes_user_id_idx on notes (user_id)`;
 
   console.log("Migration complete: tasks, comments, board_config, jira_config, notes ready.");

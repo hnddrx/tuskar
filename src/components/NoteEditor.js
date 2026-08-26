@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Save,
@@ -13,6 +13,10 @@ import {
   X,
   Mic,
   MicOff,
+  ImagePlus,
+  Circle,
+  Loader2,
+  Paperclip,
 } from "lucide-react";
 import ConfigListEditor from "@/components/ConfigListEditor";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -21,24 +25,59 @@ import { generateNoteDoc } from "@/lib/noteDocGenerator";
 import { downloadMarkdown } from "@/lib/docGenerator";
 import { newId } from "@/lib/id";
 import { useSpeechDictation } from "@/lib/useSpeechDictation";
+import { DICTATION_LANG_KEY, DICTATION_LANGUAGES } from "@/lib/constants";
 
 export default function NoteEditor({
   note,
   mode,
   tasks,
   onSave,
+  onAutosave,
   onDelete,
   onConvertActionItem,
+  onAttachmentsChange,
   breadcrumbs,
 }) {
   const [pendingChanges, setPendingChanges] = useState({});
   const isDirty = mode === "create" || Object.keys(pendingChanges).length > 0;
+
+  // Flush unsaved changes if the user navigates to another module before
+  // clicking Save, so switching pages never silently drops what they wrote.
+  // Skipped if handleSave() already fired, so leaving right after an
+  // explicit Save doesn't fire a redundant (and, for a new note, duplicate
+  // insert-conflicting) autosave on top of it.
+  const explicitSaveRef = useRef(false);
+  const unmountFlushRef = useRef(null);
+  useEffect(() => {
+    unmountFlushRef.current = () => {
+      if (explicitSaveRef.current) return;
+      const pending = pendingChanges;
+      const save = onAutosave || onSave;
+      if (mode === "create") {
+        const draft = { ...note, ...pending };
+        const hasContent = Boolean(
+          draft.title?.trim() ||
+            draft.body?.trim() ||
+            draft.attendees?.length ||
+            draft.agenda?.length ||
+            draft.actionItems?.length
+        );
+        if (hasContent) save(draft);
+      } else if (Object.keys(pending).length > 0) {
+        save(pending);
+      }
+    };
+  }, [pendingChanges, mode, note, onSave, onAutosave]);
+  useEffect(() => {
+    return () => unmountFlushRef.current();
+  }, []);
 
   function effective(field) {
     return field in pendingChanges ? pendingChanges[field] : note[field];
   }
 
   function patchPending(field, value) {
+    explicitSaveRef.current = false;
     setPendingChanges((prev) => {
       const next = { ...prev };
       if (mode === "edit" && value === note[field]) {
@@ -51,6 +90,7 @@ export default function NoteEditor({
   }
 
   function handleSave() {
+    explicitSaveRef.current = true;
     if (mode === "create") {
       onSave({ ...note, ...pendingChanges });
     } else {
@@ -73,11 +113,22 @@ export default function NoteEditor({
     downloadMarkdown(`${draft.title || "note"}.md`, generateNoteDoc(draft, tasks));
   }
 
+  const [dictationLang, setDictationLang] = useState("");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDictationLang(localStorage.getItem(DICTATION_LANG_KEY) || "");
+  }, []);
+
+  function selectDictationLang(code) {
+    setDictationLang(code);
+    localStorage.setItem(DICTATION_LANG_KEY, code);
+  }
+
   const { supported: voiceSupported, listening: voiceListening, toggle: toggleVoice } =
     useSpeechDictation((transcript) => {
       const current = effective("body");
       patchPending("body", current ? `${current} ${transcript}` : transcript);
-    });
+    }, dictationLang);
 
   const type = effective("type");
   const isMom = type === "mom";
@@ -140,26 +191,43 @@ export default function NoteEditor({
               <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
                 {isMom ? "Discussion" : "Note"}
               </label>
-              <button
-                type="button"
-                onClick={toggleVoice}
-                disabled={!voiceSupported}
-                title={
-                  voiceSupported
-                    ? voiceListening
-                      ? "Stop dictation"
-                      : "Dictate into this field"
-                    : "Voice input isn't supported in this browser"
-                }
-                className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-                  voiceListening
-                    ? "animate-pulse bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400"
-                    : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-                }`}
-              >
-                {voiceListening ? <MicOff size={13} /> : <Mic size={13} />}
-                {voiceListening ? "Listening…" : "Dictate"}
-              </button>
+              <div className="flex items-center gap-1.5">
+                {voiceSupported && (
+                  <select
+                    value={dictationLang}
+                    onChange={(e) => selectDictationLang(e.target.value)}
+                    disabled={voiceListening}
+                    title="Dictation language"
+                    className="rounded-md border border-slate-200 bg-transparent px-1.5 py-1 text-xs text-slate-500 transition-colors focus:border-slate-400 focus:outline-none disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:text-slate-400 dark:focus:border-slate-500"
+                  >
+                    {DICTATION_LANGUAGES.map((l) => (
+                      <option key={l.code} value={l.code}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button
+                  type="button"
+                  onClick={toggleVoice}
+                  disabled={!voiceSupported}
+                  title={
+                    voiceSupported
+                      ? voiceListening
+                        ? "Stop dictation"
+                        : "Dictate into this field"
+                      : "Voice input isn't supported in this browser"
+                  }
+                  className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                    voiceListening
+                      ? "animate-pulse bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400"
+                      : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  {voiceListening ? <MicOff size={13} /> : <Mic size={13} />}
+                  {voiceListening ? "Listening…" : "Dictate"}
+                </button>
+              </div>
             </div>
             <textarea
               value={effective("body")}
@@ -199,6 +267,13 @@ export default function NoteEditor({
               ))}
             </select>
           </div>
+
+          <AttachmentsPanel
+            noteId={note.id}
+            mode={mode}
+            attachments={note.attachments}
+            onAttachmentsChange={onAttachmentsChange}
+          />
 
           {isMom && (
             <>
@@ -312,6 +387,178 @@ function ActionItemsEditor({ items, onChange, onConvert, tasks, canConvert }) {
           <Plus size={13} /> Add
         </button>
       </form>
+    </div>
+  );
+}
+
+function AttachmentsPanel({ noteId, mode, attachments, onAttachmentsChange }) {
+  const [uploading, setUploading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [error, setError] = useState(null);
+  const fileInputRef = useRef(null);
+  const recorderRef = useRef(null);
+  const mediaRecorderSupported = typeof window !== "undefined" && "MediaRecorder" in window;
+
+  async function uploadFile(file) {
+    setUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/notes/${noteId}/attachments`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Upload failed (${res.status})`);
+      }
+      const updated = await res.json();
+      onAttachmentsChange?.(updated);
+    } catch (err) {
+      setError(err.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleFilePick(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) uploadFile(file);
+  }
+
+  async function startRecording() {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const chunks = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        uploadFile(new File([blob], `recording-${Date.now()}.webm`, { type: blob.type }));
+      };
+      recorder.start();
+      recorderRef.current = recorder;
+      setRecording(true);
+    } catch {
+      setError("Couldn't access the microphone");
+    }
+  }
+
+  function stopRecording() {
+    recorderRef.current?.stop();
+    setRecording(false);
+  }
+
+  async function deleteAttachment(attachmentId) {
+    setError(null);
+    try {
+      const res = await fetch(`/api/notes/${noteId}/attachments/${attachmentId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete attachment");
+      const updated = await res.json();
+      onAttachmentsChange?.(updated);
+    } catch (err) {
+      setError(err.message || "Failed to delete attachment");
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+      <h2 className="mb-2 flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+        <Paperclip size={13} /> Attachments
+      </h2>
+
+      {mode === "create" ? (
+        <p className="text-xs text-slate-400 dark:text-slate-500">
+          Save this note first to add images or recordings.
+        </p>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFilePick}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || recording}
+              className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
+            >
+              <ImagePlus size={13} /> Add image
+            </button>
+            {mediaRecorderSupported && (
+              <button
+                type="button"
+                onClick={recording ? stopRecording : startRecording}
+                disabled={uploading}
+                className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  recording
+                    ? "animate-pulse border-red-200 bg-red-50 text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-400"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
+                }`}
+              >
+                {recording ? <Square size={13} /> : <Circle size={13} />}
+                {recording ? "Stop recording" : "Record audio"}
+              </button>
+            )}
+            {uploading && (
+              <span className="flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
+                <Loader2 size={13} className="animate-spin" /> Uploading…
+              </span>
+            )}
+          </div>
+
+          {error && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{error}</p>}
+
+          {attachments?.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {attachments.map((a) => (
+                <div
+                  key={a.id}
+                  className="flex items-center gap-2 rounded-md border border-slate-100 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-800/60"
+                >
+                  {a.kind === "image" ? (
+                    <img
+                      src={`/api/notes/${noteId}/attachments/${a.id}`}
+                      alt={a.filename}
+                      className="h-12 w-12 shrink-0 rounded object-cover"
+                    />
+                  ) : (
+                    <audio
+                      controls
+                      src={`/api/notes/${noteId}/attachments/${a.id}`}
+                      className="h-8 flex-1"
+                    />
+                  )}
+                  {a.kind === "image" && (
+                    <span className="flex-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                      {a.filename}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => deleteAttachment(a.id)}
+                    title="Delete attachment"
+                    className="shrink-0 rounded p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-slate-500 dark:hover:bg-red-950"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

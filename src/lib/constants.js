@@ -57,3 +57,22 @@ export const DONE_STATUSES = ["Done", "Completed", "Cancelled"];
 
 export const STORAGE_KEY = "taskar:v1";
 export const JIRA_SETTINGS_KEY = "taskar:jira-settings:v1";
+export const DICTATION_LANG_KEY = "taskar:dictation-lang:v1";
+
+// A curated subset of languages Web Speech API commonly supports. "" means
+// "follow the browser's own language" (navigator.language).
+export const DICTATION_LANGUAGES = [
+  { code: "", label: "Browser default" },
+  { code: "en-US", label: "English (US)" },
+  { code: "en-GB", label: "English (UK)" },
+  { code: "fil-PH", label: "Filipino" },
+  { code: "es-ES", label: "Spanish" },
+  { code: "fr-FR", label: "French" },
+  { code: "de-DE", label: "German" },
+  { code: "pt-BR", label: "Portuguese (Brazil)" },
+  { code: "zh-CN", label: "Chinese (Mandarin)" },
+  { code: "ja-JP", label: "Japanese" },
+  { code: "ko-KR", label: "Korean" },
+  { code: "hi-IN", label: "Hindi" },
+  { code: "ar-SA", label: "Arabic" },
+];

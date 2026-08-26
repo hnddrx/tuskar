@@ -43,6 +43,7 @@ export function rowToNote(row) {
     attendees: row.attendees,
     agenda: row.agenda,
     actionItems: row.action_items,
+    attachments: row.attachments || [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

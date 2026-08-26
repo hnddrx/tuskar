@@ -40,6 +40,16 @@ function NewNoteInner() {
     }
   }
 
+  // Fired when the user navigates away before clicking Save. Unlike
+  // handleSave, this never redirects — the user has already left the page.
+  function handleAutosave(record) {
+    fetch("/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record),
+    }).catch(() => {});
+  }
+
   return (
     <>
       {saveError && (
@@ -60,6 +70,7 @@ function NewNoteInner() {
         mode="create"
         tasks={tasks}
         onSave={handleSave}
+        onAutosave={handleAutosave}
         breadcrumbs={[
           { label: "Notes", href: "/notes" },
           { label: type === "mom" ? "New MOM" : "New note" },
