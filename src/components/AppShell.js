@@ -15,7 +15,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 import { DONE_STATUSES } from "@/lib/constants";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -158,7 +158,10 @@ export default function AppShell({ children }) {
             <div className="flex items-center justify-between">
               <div className="flex items-center justify-between flex-1">
                 <Brand />
-                <UserButton />
+                <div className="flex items-center gap-2">
+                  <OrganizationSwitcher hidePersonal={false} />
+                  <UserButton />
+                </div>
               </div>
               <button
                 onClick={() => setDrawerOpen(false)}
@@ -181,7 +184,10 @@ export default function AppShell({ children }) {
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:flex">
         <div className="flex items-center justify-between pr-4">
           <Brand />
-          <UserButton />
+          <div className="flex items-center gap-2">
+            <OrganizationSwitcher hidePersonal={false} />
+            <UserButton />
+          </div>
         </div>
         <div className="px-5 pb-3">
           <ThemeToggle />
