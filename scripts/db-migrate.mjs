@@ -91,7 +91,62 @@ async function migrate() {
   await sql`alter table notes add column if not exists attachments jsonb not null default '[]'`;
   await sql`create index if not exists notes_user_id_idx on notes (user_id)`;
 
-  console.log("Migration complete: tasks, comments, board_config, jira_config, notes ready.");
+  await sql`
+    create table if not exists team_tasks (
+      id text primary key,
+      org_id text not null,
+      ticket_id text not null,
+      parent_id text,
+      type text not null,
+      name text not null,
+      status text not null,
+      priority text not null,
+      assignee text,
+      start_date text,
+      target_date text,
+      progress integer not null default 0,
+      last_update text,
+      description text not null default '',
+      github_branch text not null default 'N/A',
+      jira_link text,
+      comment_count integer not null default 0,
+      sync_source text not null default 'Manual',
+      created_by text not null,
+      created_at text not null,
+      updated_at text not null
+    )
+  `;
+  await sql`create index if not exists team_tasks_org_id_idx on team_tasks (org_id)`;
+
+  await sql`
+    create table if not exists team_comments (
+      id text primary key,
+      org_id text not null,
+      ticket_id text not null,
+      parent_comment_id text,
+      created text not null,
+      updated text not null,
+      author_user_id text not null,
+      text text not null default '',
+      jira_issue_link text,
+      sync_source text not null default 'Manual'
+    )
+  `;
+  await sql`create index if not exists team_comments_org_id_idx on team_comments (org_id)`;
+  await sql`create index if not exists team_comments_ticket_id_idx on team_comments (ticket_id)`;
+
+  await sql`
+    create table if not exists team_board_config (
+      org_id text primary key,
+      statuses jsonb not null,
+      priorities jsonb not null,
+      types jsonb not null
+    )
+  `;
+
+  console.log(
+    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config ready."
+  );
 }
 
 migrate().catch((err) => {
