@@ -103,6 +103,84 @@ export function buildTaskInvite({ task, attendees = [], organizer = null, url = 
   return lines.map(foldLine).join("\r\n");
 }
 
+// "2026-09-01" + "14:30" (in the viewer's own timezone) -> "20260901T063000Z".
+// Converting to UTC rather than emitting a floating local time is what makes
+// an invite land at the right moment for a recipient in another timezone.
+function toUtcDateTime(ymd, hm) {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  const [hh, mm] = String(hm).split(":").map(Number);
+  const dt = new Date(y, m - 1, d, hh, mm, 0);
+  return `${dt.toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
+}
+
+// Adds `minutes` to a local date+time and returns it as a UTC stamp. Used to
+// give an event without an explicit end time a sane default duration.
+function addMinutesUtc(ymd, hm, minutes) {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  const [hh, mm] = String(hm).split(":").map(Number);
+  const dt = new Date(y, m - 1, d, hh, mm + minutes, 0);
+  return `${dt.toISOString().replace(/[-:]/g, "").split(".")[0]}Z`;
+}
+
+/**
+ * Builds an .ics payload for a standalone calendar event (a meeting), as
+ * opposed to `buildTaskInvite`'s all-day event derived from a task's due
+ * date. An event with a `startTime` becomes a timed VEVENT; without one it
+ * falls back to an all-day event.
+ */
+export function buildEventInvite({ event, organizer = null, url = null }) {
+  if (!event?.eventDate) return null;
+
+  const withEmail = (event.attendees || []).filter((a) => a?.email);
+  const isRequest = withEmail.length > 0;
+
+  const lines = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Taskar//Task Calendar//EN",
+    "CALSCALE:GREGORIAN",
+    `METHOD:${isRequest ? "REQUEST" : "PUBLISH"}`,
+    "BEGIN:VEVENT",
+    `UID:${event.id}@taskar`,
+    `DTSTAMP:${utcStamp()}`,
+  ];
+
+  if (event.startTime) {
+    lines.push(`DTSTART:${toUtcDateTime(event.eventDate, event.startTime)}`);
+    lines.push(
+      `DTEND:${
+        event.endTime
+          ? toUtcDateTime(event.eventDate, event.endTime)
+          : addMinutesUtc(event.eventDate, event.startTime, 30)
+      }`
+    );
+  } else {
+    lines.push(`DTSTART;VALUE=DATE:${toDateValue(event.eventDate)}`);
+    lines.push(`DTEND;VALUE=DATE:${nextDay(event.eventDate)}`);
+  }
+
+  lines.push(`SUMMARY:${escapeText(event.title)}`);
+  if (event.description) lines.push(`DESCRIPTION:${escapeText(event.description)}`);
+  if (event.location) lines.push(`LOCATION:${escapeText(event.location)}`);
+  lines.push("STATUS:CONFIRMED", "SEQUENCE:0");
+  if (url) lines.push(`URL:${escapeText(url)}`);
+
+  if (organizer?.email) {
+    lines.push(
+      `ORGANIZER;CN=${escapeText(organizer.name || organizer.email)}:mailto:${organizer.email}`
+    );
+  }
+  for (const a of withEmail) {
+    lines.push(
+      `ATTENDEE;CN=${escapeText(a.name || a.email)};ROLE=REQ-PARTICIPANT;` +
+        `PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:${a.email}`
+    );
+  }
+
+  lines.push("END:VEVENT", "END:VCALENDAR");
+  return lines.map(foldLine).join("\r\n");
+}
+
 export function downloadIcs(filename, content) {
   const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
   const href = URL.createObjectURL(blob);
@@ -133,5 +211,26 @@ export function buildInviteMailto({ task, attendees, url }) {
 
   return `mailto:${to}?subject=${encodeURIComponent(
     `Invite: ${task.name}`
+  )}&body=${encodeURIComponent(body)}`;
+}
+
+export function buildEventMailto({ event, url }) {
+  const to = (event.attendees || []).filter((a) => a?.email).map((a) => a.email).join(",");
+  const when = event.startTime
+    ? `${event.eventDate} at ${event.startTime}${event.endTime ? `–${event.endTime}` : ""}`
+    : `${event.eventDate} (all day)`;
+  const body = [
+    event.title,
+    `When: ${when}`,
+    event.location ? `Where: ${event.location}` : null,
+    event.description ? `\n${event.description}` : null,
+    url ? `\nOpen in Taskar: ${url}` : null,
+    "\nThe calendar invite (.ics) is attached.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return `mailto:${to}?subject=${encodeURIComponent(
+    `Invite: ${event.title}`
   )}&body=${encodeURIComponent(body)}`;
 }

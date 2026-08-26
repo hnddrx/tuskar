@@ -161,8 +161,48 @@ async function migrate() {
     )
   `;
 
+  // Calendar events (meetings/invites), kept in per-scope tables for the same
+  // reason tasks are: a query against one can never return the other's rows.
+  // `attendees` is a snapshot of [{name, email}] at creation time — unlike a
+  // task's assignees, an invite's guest list is a point-in-time artifact and
+  // shouldn't retroactively change when team membership does.
+  await sql`
+    create table if not exists calendar_events (
+      id text primary key,
+      user_id text not null,
+      title text not null,
+      description text not null default '',
+      location text not null default '',
+      event_date text not null,
+      start_time text,
+      end_time text,
+      attendees jsonb not null default '[]',
+      created_at text not null,
+      updated_at text not null
+    )
+  `;
+  await sql`create index if not exists calendar_events_user_id_idx on calendar_events (user_id)`;
+
+  await sql`
+    create table if not exists team_calendar_events (
+      id text primary key,
+      org_id text not null,
+      title text not null,
+      description text not null default '',
+      location text not null default '',
+      event_date text not null,
+      start_time text,
+      end_time text,
+      attendees jsonb not null default '[]',
+      created_by text not null,
+      created_at text not null,
+      updated_at text not null
+    )
+  `;
+  await sql`create index if not exists team_calendar_events_org_id_idx on team_calendar_events (org_id)`;
+
   console.log(
-    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config ready."
+    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events ready."
   );
 }
 

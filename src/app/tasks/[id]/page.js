@@ -105,6 +105,7 @@ function TaskDetailPageInner() {
   return (
     <div className="flex-1">
       <PageHeader
+        scope="personal"
         title={
           <InlineField
             value={effective("name")}

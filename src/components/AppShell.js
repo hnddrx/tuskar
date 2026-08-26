@@ -22,18 +22,43 @@ import { useTasks } from "@/context/TaskContext";
 import { DONE_STATUSES } from "@/lib/constants";
 import ThemeToggle from "@/components/ThemeToggle";
 
-const NAV = [
-  { href: "/", label: "Overview", icon: LayoutDashboard },
-  { href: "/notes", label: "Notes", icon: NotebookText },
-  { href: "/tasks", label: "Task Table", icon: Table2 },
-  { href: "/board", label: "Board", icon: KanbanSquare },
-  { href: "/team/tasks", label: "Team Tasks", icon: Users },
-  { href: "/team/board", label: "Team Board", icon: KanbanSquare },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/docs", label: "Auto Docs", icon: FileText },
-  { href: "/jira", label: "Jira Import", icon: Link2 },
-  { href: "/config", label: "Configuration", icon: Settings2 },
-  { href: "/guide", label: "User Guide", icon: BookOpenText },
+// Grouped so "my stuff" and "the team's stuff" read as two different places
+// at a glance — the two used to sit in one flat list where only the word
+// "Team" distinguished them.
+const NAV_SECTIONS = [
+  {
+    label: null,
+    items: [
+      { href: "/", label: "Overview", icon: LayoutDashboard },
+      { href: "/calendar", label: "Calendar", icon: CalendarDays },
+    ],
+  },
+  {
+    label: "Personal",
+    accent: "personal",
+    items: [
+      { href: "/tasks", label: "My Tasks", icon: Table2 },
+      { href: "/board", label: "My Board", icon: KanbanSquare },
+      { href: "/notes", label: "Notes", icon: NotebookText },
+    ],
+  },
+  {
+    label: "Team",
+    accent: "team",
+    items: [
+      { href: "/team/tasks", label: "Team Tasks", icon: Users },
+      { href: "/team/board", label: "Team Board", icon: KanbanSquare },
+    ],
+  },
+  {
+    label: null,
+    items: [
+      { href: "/docs", label: "Auto Docs", icon: FileText },
+      { href: "/jira", label: "Jira Import", icon: Link2 },
+      { href: "/config", label: "Configuration", icon: Settings2 },
+      { href: "/guide", label: "User Guide", icon: BookOpenText },
+    ],
+  },
 ];
 
 function Brand() {
@@ -84,27 +109,53 @@ function SidebarIdentity() {
   );
 }
 
+// Team destinations carry the same indigo the Calendar uses for team events,
+// so scope is signalled by colour consistently across the app.
+const ACTIVE_STYLES = {
+  team: "bg-indigo-600 text-white dark:bg-indigo-500 dark:text-white",
+  personal: "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900",
+  default: "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900",
+};
+
 function NavLinks({ pathname, onNavigate }) {
   return (
-    <nav className="flex-1 space-y-1 px-3">
-      {NAV.map(({ href, label, icon: Icon }) => {
-        const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-        return (
-          <Link
-            key={href}
-            href={href}
-            onClick={onNavigate}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors sm:py-2 ${
-              active
-                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-            }`}
-          >
-            <Icon size={16} strokeWidth={2} />
-            {label}
-          </Link>
-        );
-      })}
+    <nav className="flex-1 overflow-y-auto px-3 pb-2">
+      {NAV_SECTIONS.map((section, i) => (
+        <div key={section.label || `group-${i}`} className={i === 0 ? "" : "mt-4"}>
+          {section.label && (
+            <p className="mb-1 flex items-center gap-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  section.accent === "team"
+                    ? "bg-indigo-400 dark:bg-indigo-500"
+                    : "bg-slate-300 dark:bg-slate-600"
+                }`}
+              />
+              {section.label}
+            </p>
+          )}
+          <div className="space-y-1">
+            {section.items.map(({ href, label, icon: Icon }) => {
+              const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={onNavigate}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors sm:py-2 ${
+                    active
+                      ? ACTIVE_STYLES[section.accent || "default"]
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                  }`}
+                >
+                  <Icon size={16} strokeWidth={2} />
+                  {label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
   );
 }

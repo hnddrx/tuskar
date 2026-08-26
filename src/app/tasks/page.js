@@ -244,7 +244,7 @@ function TasksPageInner() {
   const listSearch = searchParams.toString();
   const fromParams = new URLSearchParams({
     from: listSearch ? `/tasks?${listSearch}` : "/tasks",
-    fromLabel: "Task Table",
+    fromLabel: "My Tasks",
   }).toString();
   function taskHref(id) {
     return `/tasks/${id}?${fromParams}`;
@@ -376,7 +376,8 @@ function TasksPageInner() {
   return (
     <div className="flex-1">
       <PageHeader
-        title="Task Table"
+        title="My Tasks"
+        scope="personal"
         subtitle={`${sorted.length} of ${tasks.length} task${tasks.length === 1 ? "" : "s"}`}
         actions={
           <button

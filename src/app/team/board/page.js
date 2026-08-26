@@ -14,7 +14,7 @@ import { DONE_STATUSES } from "@/lib/constants";
 const BOARD_FROM = new URLSearchParams({ from: "/team/board", fromLabel: "Team Board" }).toString();
 
 export default function TeamBoardPage() {
-  const { team: { tasks, config, updateTask, orgId } } = useTasks();
+  const { team: { tasks, config, updateTask, orgId, orgName } } = useTasks();
   const [modalOpen, setModalOpen] = useState(false);
   const [dragId, setDragId] = useState(null);
 
@@ -33,7 +33,9 @@ export default function TeamBoardPage() {
     <div className="flex-1">
       <PageHeader
         title="Team Board"
-        subtitle="Drag a card to change its status."
+        scope="team"
+        teamName={orgName}
+        subtitle="Shared with everyone on this team. Drag a card to change its status."
         actions={
           <button
             onClick={() => setModalOpen(true)}

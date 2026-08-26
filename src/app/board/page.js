@@ -29,7 +29,8 @@ export default function BoardPage() {
   return (
     <div className="flex-1">
       <PageHeader
-        title="Board"
+        title="My Board"
+        scope="personal"
         subtitle="Drag a card to change its status."
         actions={
           <button

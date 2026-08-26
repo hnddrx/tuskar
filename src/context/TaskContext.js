@@ -9,7 +9,7 @@ import {
   useState,
   useMemo,
 } from "react";
-import { useAuth, useUser } from "@clerk/nextjs";
+import { useAuth, useUser, useOrganization } from "@clerk/nextjs";
 import seed from "@/data/seed.json";
 import { newId, nowIso, todayIso } from "@/lib/id";
 import { STORAGE_KEY } from "@/lib/constants";
@@ -70,6 +70,8 @@ function resolveAssignees(ids, members) {
 export function TaskProvider({ children }) {
   const { isLoaded, isSignedIn, userId, orgId } = useAuth();
   const { user } = useUser();
+  const { organization } = useOrganization();
+  const orgName = organization?.name || null;
   const confirm = useConfirm();
 
   const [personal, setPersonal] = useState({
@@ -78,9 +80,11 @@ export function TaskProvider({ children }) {
     config: seed.config,
   });
   const [personalHydrated, setPersonalHydrated] = useState(false);
+  const [personalEvents, setPersonalEvents] = useState([]);
   const lastUserIdRef = useRef(undefined);
 
   const [team, setTeam] = useState({ tasks: [], comments: [], config: EMPTY_TEAM_CONFIG });
+  const [teamEvents, setTeamEvents] = useState([]);
   const [members, setMembers] = useState([]);
   const [teamHydrated, setTeamHydrated] = useState(false);
   const lastOrgIdRef = useRef(undefined);
@@ -134,6 +138,7 @@ export function TaskProvider({ children }) {
     if (userChanged) {
       setPersonalHydrated(false);
       setPersonal({ tasks: [], comments: [], config: seed.config });
+      setPersonalEvents([]);
     }
     lastUserIdRef.current = userId;
 
@@ -164,8 +169,16 @@ export function TaskProvider({ children }) {
           window.localStorage.setItem(IMPORT_OFFERED_KEY, "1");
         }
 
+        // Calendar events live on their own route, so a failure there can't
+        // take the tasks/comments load down with it.
+        const events = await fetchJson("/api/calendar/events").catch((err) => {
+          console.warn("Failed to load personal calendar events", err);
+          return [];
+        });
+
         if (cancelled) return;
         setPersonal({ tasks: server.tasks, comments: server.comments, config: server.config });
+        setPersonalEvents(events);
       } catch (err) {
         console.warn("Failed to load personal taskar state from server", err);
       } finally {
@@ -190,6 +203,7 @@ export function TaskProvider({ children }) {
     if (orgChanged || !orgId) {
       setTeamHydrated(false);
       setTeam({ tasks: [], comments: [], config: EMPTY_TEAM_CONFIG });
+      setTeamEvents([]);
       setMembers([]);
     }
     lastOrgIdRef.current = orgId;
@@ -210,12 +224,18 @@ export function TaskProvider({ children }) {
           console.warn("Failed to load team members", err);
           if (!cancelled) syncCall(loadMembers);
         }
+        const events = await fetchJson("/api/team/calendar/events").catch((err) => {
+          console.warn("Failed to load team calendar events", err);
+          return [];
+        });
+
         if (cancelled) return;
         setTeam({
           tasks: server.tasks,
           comments: server.comments,
           config: { ...server.config, assignees: memberList.map((m) => m.name) },
         });
+        setTeamEvents(events);
       } catch (err) {
         console.warn("Failed to load team taskar state from server", err);
       } finally {
@@ -461,6 +481,67 @@ export function TaskProvider({ children }) {
     );
   }, [syncCall]);
 
+  // Calendar events. Personal and team differ only in which route they hit,
+  // so one factory builds both pairs of mutators.
+  const makeEventMutators = (basePath, setEvents) => ({
+    add: (event) => {
+      const id = newId("event");
+      const ts = nowIso();
+      const record = {
+        id,
+        title: event.title?.trim() || "Untitled event",
+        description: event.description || "",
+        location: event.location || "",
+        eventDate: event.eventDate,
+        startTime: event.startTime || null,
+        endTime: event.endTime || null,
+        attendees: event.attendees || [],
+        createdAt: ts,
+        updatedAt: ts,
+      };
+      setEvents((list) => [...list, record]);
+      syncCall(() =>
+        fetch(basePath, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(record),
+        }).then((res) => {
+          if (!res.ok) throw new Error("Failed to save event");
+        })
+      );
+      return record;
+    },
+    remove: (id) => {
+      setEvents((list) => list.filter((e) => e.id !== id));
+      syncCall(() =>
+        fetch(`${basePath}/${id}`, { method: "DELETE" }).then((res) => {
+          if (!res.ok) throw new Error("Failed to delete event");
+        })
+      );
+    },
+  });
+
+  const addPersonalEvent = useCallback(
+    (event) => makeEventMutators("/api/calendar/events", setPersonalEvents).add(event),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [syncCall]
+  );
+  const deletePersonalEvent = useCallback(
+    (id) => makeEventMutators("/api/calendar/events", setPersonalEvents).remove(id),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [syncCall]
+  );
+  const addTeamEvent = useCallback(
+    (event) => makeEventMutators("/api/team/calendar/events", setTeamEvents).add(event),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [syncCall]
+  );
+  const deleteTeamEvent = useCallback(
+    (id) => makeEventMutators("/api/team/calendar/events", setTeamEvents).remove(id),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [syncCall]
+  );
+
   // ---------------------------------------------------------------------
   // Team mutators
   // ---------------------------------------------------------------------
@@ -613,7 +694,10 @@ export function TaskProvider({ children }) {
         tasks: personal.tasks,
         comments: personal.comments,
         config: personal.config,
+        events: personalEvents,
         hydrated: personalHydrated,
+        addEvent: addPersonalEvent,
+        deleteEvent: deletePersonalEvent,
         addTask,
         updateTask,
         deleteTask,
@@ -627,9 +711,13 @@ export function TaskProvider({ children }) {
         tasks: team.tasks,
         comments: team.comments,
         config: team.config,
+        events: teamEvents,
         members,
         orgId,
+        orgName,
         hydrated: teamHydrated,
+        addEvent: addTeamEvent,
+        deleteEvent: deleteTeamEvent,
         addTask: addTeamTask,
         updateTask: updateTeamTask,
         deleteTask: deleteTeamTask,
@@ -645,6 +733,12 @@ export function TaskProvider({ children }) {
     [
       personal,
       personalHydrated,
+      personalEvents,
+      addPersonalEvent,
+      deletePersonalEvent,
+      teamEvents,
+      addTeamEvent,
+      deleteTeamEvent,
       addTask,
       updateTask,
       deleteTask,
@@ -656,6 +750,7 @@ export function TaskProvider({ children }) {
       team,
       members,
       orgId,
+      orgName,
       teamHydrated,
       addTeamTask,
       updateTeamTask,

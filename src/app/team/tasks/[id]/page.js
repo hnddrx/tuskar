@@ -27,7 +27,7 @@ function TeamTaskDetailPageInner() {
   const { id } = useParams();
   const searchParams = useSearchParams();
   const {
-    team: { tasks, comments, config, updateTask, addComment, deleteComment, members, orgId },
+    team: { tasks, comments, config, updateTask, addComment, deleteComment, members, orgId, orgName },
   } = useTasks();
 
   const [pendingChanges, setPendingChanges] = useState({});
@@ -106,6 +106,8 @@ function TeamTaskDetailPageInner() {
   return (
     <div className="flex-1">
       <PageHeader
+        scope="team"
+        teamName={orgName}
         title={
           <InlineField
             value={effective("name")}

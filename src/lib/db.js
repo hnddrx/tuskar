@@ -64,6 +64,24 @@ export function rowToComment(row) {
   };
 }
 
+// Shared by both the personal and team calendar tables — their columns are
+// identical apart from the scope key and `created_by`.
+export function rowToCalendarEvent(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    location: row.location,
+    eventDate: row.event_date,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    attendees: Array.isArray(row.attendees) ? row.attendees : [],
+    createdBy: row.created_by ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 export async function getTeamMembersById(orgId) {
   const clerk = await clerkClient();
   const { data } = await clerk.organizations.getOrganizationMembershipList({

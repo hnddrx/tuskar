@@ -220,7 +220,7 @@ export default function TeamTasksPage() {
 }
 
 function TeamTasksPageInner() {
-  const { team: { tasks, comments, config, deleteTask, orgId } } = useTasks();
+  const { team: { tasks, comments, config, deleteTask, orgId, orgName } } = useTasks();
   const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -243,7 +243,7 @@ function TeamTasksPageInner() {
   const listSearch = searchParams.toString();
   const fromParams = new URLSearchParams({
     from: listSearch ? `/team/tasks?${listSearch}` : "/team/tasks",
-    fromLabel: "Team Task Table",
+    fromLabel: "Team Tasks",
   }).toString();
   function taskHref(id) {
     return `/team/tasks/${id}?${fromParams}`;
@@ -378,8 +378,10 @@ function TeamTasksPageInner() {
   return (
     <div className="flex-1">
       <PageHeader
-        title="Team Task Table"
-        subtitle={`${sorted.length} of ${tasks.length} task${tasks.length === 1 ? "" : "s"}`}
+        title="Team Tasks"
+        scope="team"
+        teamName={orgName}
+        subtitle={`${sorted.length} of ${tasks.length} task${tasks.length === 1 ? "" : "s"} · shared with everyone on this team`}
         actions={
           <button
             onClick={openNew}

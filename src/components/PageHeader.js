@@ -1,19 +1,23 @@
 "use client";
 
 import { Plus } from "lucide-react";
+import ScopeBadge from "@/components/ScopeBadge";
 
 // Shared sticky header used at the top of every page: title/subtitle on the
 // left, primary actions on the right. Stays pinned while the page scrolls,
 // so a primary action like "New task" never requires scrolling to reach.
 // `children` renders below the title row (e.g. a filters bar) and stays
 // pinned too.
-export default function PageHeader({ title, subtitle, actions, children, mobileFab }) {
+export default function PageHeader({ title, subtitle, actions, children, mobileFab, scope, teamName }) {
   return (
     <>
       <div className="sticky top-14 z-10 border-b border-slate-200 bg-slate-50/95 px-4 py-4 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:px-8 md:top-0">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
+            <div className="flex min-w-0 items-center gap-2">
+              <h1 className="truncate text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
+              {scope && <ScopeBadge scope={scope} teamName={teamName} />}
+            </div>
             {subtitle && (
               <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>
             )}
