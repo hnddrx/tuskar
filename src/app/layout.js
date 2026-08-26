@@ -6,9 +6,9 @@ import { ConfirmProvider } from "@/components/ConfirmProvider";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 export const metadata = {
-  title: "Taskar — Personal Task Tracker",
+  title: "Taskar — Personal & Team Task Tracker",
   description:
-    "A personal task tracker with Jira sync, auto documentation, and an auto-generated user guide.",
+    "Track your own work and your team's on shared boards, with a calendar, invites, Jira sync, and auto documentation.",
 };
 
 export default function RootLayout({ children }) {

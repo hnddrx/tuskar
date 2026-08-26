@@ -43,3 +43,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Saved Playwright session for npm run guide — contains a live session token
+.auth/

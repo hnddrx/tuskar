@@ -21,6 +21,7 @@ import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 import { DONE_STATUSES } from "@/lib/constants";
 import ThemeToggle from "@/components/ThemeToggle";
+import Logo, { Wordmark } from "@/components/Logo";
 
 // Grouped so "my stuff" and "the team's stuff" read as two different places
 // at a glance — the two used to sit in one flat list where only the word
@@ -62,21 +63,7 @@ const NAV_SECTIONS = [
 ];
 
 function Brand() {
-  return (
-    <div className="flex min-w-0 flex-1 items-center gap-2">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-sm font-bold text-white dark:bg-slate-100 dark:text-slate-900">
-        T
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-          Taskar
-        </p>
-        <p className="truncate text-xs text-slate-400 dark:text-slate-500">
-          Task tracker
-        </p>
-      </div>
-    </div>
-  );
+  return <Wordmark />;
 }
 
 // The sidebar is only 240px wide, so Clerk's switcher has to be told to fill
@@ -235,10 +222,10 @@ export default function AppShell({ children }) {
           <Menu size={20} />
         </button>
         <div className="flex flex-1 items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-900 text-xs font-bold text-white dark:bg-slate-100 dark:text-slate-900">
-            T
-          </div>
-          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Taskar</span>
+          <Logo size={26} />
+          <span className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+            Taskar
+          </span>
         </div>
         <ThemeToggle />
       </div>
