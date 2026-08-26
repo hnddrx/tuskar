@@ -6,7 +6,7 @@ import ConfigListEditor from "@/components/ConfigListEditor";
 import PageHeader from "@/components/PageHeader";
 
 export default function ConfigPage() {
-  const { config, updateConfig, resetToSeed } = useTasks();
+  const { config, updateConfig, resetToSeed, orgId } = useTasks();
   const confirm = useConfirm();
 
   async function handleReset() {
@@ -26,12 +26,14 @@ export default function ConfigPage() {
         title="Configuration"
         subtitle="These lists power every dropdown in the app — statuses, priorities, task types, and assignees."
         actions={
-          <button
-            onClick={handleReset}
-            className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
-          >
-            Reset to imported data
-          </button>
+          !orgId && (
+            <button
+              onClick={handleReset}
+              className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-500 hover:bg-slate-50 transition-colors dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
+            >
+              Reset to imported data
+            </button>
+          )
         }
       />
 
@@ -53,11 +55,13 @@ export default function ConfigPage() {
             items={config.types}
             onChange={(v) => updateConfig("types", v)}
           />
-          <ConfigListEditor
-            title="Assignees"
-            items={config.assignees}
-            onChange={(v) => updateConfig("assignees", v)}
-          />
+          {!orgId && (
+            <ConfigListEditor
+              title="Assignees"
+              items={config.assignees}
+              onChange={(v) => updateConfig("assignees", v)}
+            />
+          )}
         </div>
       </div>
     </div>
