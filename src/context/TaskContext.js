@@ -26,7 +26,7 @@ async function fetchState(orgId) {
 
 async function fetchMembers() {
   const res = await fetch("/api/team/members");
-  if (!res.ok) return [];
+  if (!res.ok) throw new Error(`Failed to load team members (${res.status})`);
   return res.json();
 }
 
@@ -138,7 +138,20 @@ export function TaskProvider({ children }) {
           }
         }
 
-        const memberList = orgId ? await fetchMembers() : [];
+        let memberList = [];
+        if (orgId) {
+          try {
+            memberList = await fetchMembers();
+          } catch (err) {
+            // Don't let a members-fetch failure abort the whole load — the
+            // task/comment state above already succeeded. Surface it through
+            // the same syncError channel other sync failures use, so the
+            // banner in AppShell tells the user something's wrong instead of
+            // silently treating the team as empty.
+            console.warn("Failed to load team members", err);
+            setSyncError(err.message || "Failed to load team members");
+          }
+        }
 
         if (cancelled) return;
         setState({
@@ -171,12 +184,20 @@ export function TaskProvider({ children }) {
   const addTask = useCallback((task) => {
     const id = newId("task");
     const ts = nowIso();
-    const resolved = orgId
-      ? {
-          assignee: members.find((m) => m.id === task.assignee)?.name || "Unassigned",
-          assigneeId: task.assignee || null,
-        }
-      : { assignee: task.assignee || "Unassigned", assigneeId: null };
+    let resolved;
+    if (!orgId) {
+      resolved = { assignee: task.assignee || "Unassigned", assigneeId: null };
+    } else {
+      // `assignee` and `assigneeId` must never disagree about whether
+      // someone is actually assigned: if the given id doesn't resolve to a
+      // known member (e.g. `members` hasn't loaded yet, or failed to load),
+      // treat it the same as no assignment on both fields rather than
+      // stamping a real id next to a display name of "Unassigned".
+      const match = task.assignee ? members.find((m) => m.id === task.assignee) : null;
+      resolved = match
+        ? { assignee: match.name, assigneeId: match.id }
+        : { assignee: "Unassigned", assigneeId: null };
+    }
     const record = {
       id,
       ticketId: task.ticketId?.trim() || "N/A",
@@ -215,9 +236,11 @@ export function TaskProvider({ children }) {
   const updateTask = useCallback((id, patch) => {
     const resolvedPatch = { ...patch };
     if (orgId && "assignee" in patch) {
-      resolvedPatch.assigneeId = patch.assignee || null;
-      resolvedPatch.assignee =
-        members.find((m) => m.id === patch.assignee)?.name || "Unassigned";
+      // Same rule as addTask: an unresolvable id must not leave assignee and
+      // assigneeId disagreeing about whether someone is assigned.
+      const match = patch.assignee ? members.find((m) => m.id === patch.assignee) : null;
+      resolvedPatch.assignee = match ? match.name : "Unassigned";
+      resolvedPatch.assigneeId = match ? match.id : null;
     }
     const fullPatch = { ...resolvedPatch, lastUpdate: todayIso(), updatedAt: nowIso() };
     setState((s) => ({
