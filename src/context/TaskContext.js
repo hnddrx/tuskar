@@ -96,7 +96,14 @@ export function TaskProvider({ children }) {
   // (`failedRequestRef.current`) and to self-clear `syncError` once a
   // later call succeeds.
   const loadMembers = useCallback(async () => {
+    const orgIdAtFetchStart = lastOrgIdRef.current;
     const list = await fetchMembers();
+    if (lastOrgIdRef.current !== orgIdAtFetchStart) {
+      // The active org changed while this request was in flight — discard
+      // rather than splice a stale org's members into the now-current org's
+      // state.
+      return list;
+    }
     setMembers(list);
     setState((s) => ({
       ...s,
