@@ -19,7 +19,7 @@ function formatTs(iso) {
 }
 
 export default function CommentThread({ taskId }) {
-  const { comments, addComment, deleteComment } = useTasks();
+  const { comments, addComment, deleteComment, orgId } = useTasks();
   const [text, setText] = useState("");
   const [author, setAuthor] = useState("Wren");
 
@@ -45,11 +45,13 @@ export default function CommentThread({ taskId }) {
           className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
         />
         <div className="flex items-center justify-between">
-          <input
-            value={author}
-            onChange={(e) => setAuthor(e.target.value)}
-            className="w-32 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:text-slate-400 dark:focus:border-slate-500 transition-colors"
-          />
+          {!orgId && (
+            <input
+              value={author}
+              onChange={(e) => setAuthor(e.target.value)}
+              className="w-32 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:text-slate-400 dark:focus:border-slate-500 transition-colors"
+            />
+          )}
           <button
             type="submit"
             className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 transition-colors"
