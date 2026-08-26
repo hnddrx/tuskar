@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   Users,
+  CalendarDays,
 } from "lucide-react";
 import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
@@ -28,6 +29,7 @@ const NAV = [
   { href: "/board", label: "Board", icon: KanbanSquare },
   { href: "/team/tasks", label: "Team Tasks", icon: Users },
   { href: "/team/board", label: "Team Board", icon: KanbanSquare },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/docs", label: "Auto Docs", icon: FileText },
   { href: "/jira", label: "Jira Import", icon: Link2 },
   { href: "/config", label: "Configuration", icon: Settings2 },
@@ -36,15 +38,49 @@ const NAV = [
 
 function Brand() {
   return (
-    <div className="flex items-center gap-2 px-5 py-5">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-sm font-bold text-white dark:bg-slate-100 dark:text-slate-900">
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-sm font-bold text-white dark:bg-slate-100 dark:text-slate-900">
         T
       </div>
-      <div>
-        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Taskar</p>
-        <p className="text-xs text-slate-400 dark:text-slate-500">Personal task tracker</p>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+          Taskar
+        </p>
+        <p className="truncate text-xs text-slate-400 dark:text-slate-500">
+          Task tracker
+        </p>
       </div>
     </div>
+  );
+}
+
+// The sidebar is only 240px wide, so Clerk's switcher has to be told to fill
+// it and wrap its own label — left to its natural width it overflows the
+// aside and lands on top of the page content next to it.
+const SWITCHER_APPEARANCE = {
+  elements: {
+    rootBox: "w-full",
+    organizationSwitcherTrigger:
+      "w-full justify-between gap-2 rounded-lg border border-slate-200 px-2.5 py-2 dark:border-slate-800",
+    organizationPreview: "min-w-0",
+    organizationPreviewMainIdentifier: "truncate text-sm",
+    organizationPreviewSecondaryIdentifier: "truncate text-xs",
+  },
+};
+
+function SidebarIdentity() {
+  return (
+    <>
+      <div className="flex items-center gap-2 px-4 pb-3 pt-5">
+        <Brand />
+        <div className="shrink-0">
+          <UserButton />
+        </div>
+      </div>
+      <div className="px-3 pb-3">
+        <OrganizationSwitcher hidePersonal={false} appearance={SWITCHER_APPEARANCE} />
+      </div>
+    </>
   );
 }
 
@@ -164,23 +200,23 @@ export default function AppShell({ children }) {
             onClick={() => setDrawerOpen(false)}
           />
           <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-white shadow-xl dark:bg-slate-900">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center justify-between flex-1">
-                <Brand />
-                <div className="flex items-center gap-2">
-                  <OrganizationSwitcher hidePersonal={false} />
-                  <UserButton />
-                </div>
+            <div className="flex items-center gap-2 px-4 pb-3 pt-5">
+              <Brand />
+              <div className="shrink-0">
+                <UserButton />
               </div>
               <button
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Close menu"
-                className="mr-4 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 dark:text-slate-500 dark:hover:bg-slate-800"
+                className="shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 dark:text-slate-500 dark:hover:bg-slate-800"
               >
                 <X size={18} />
               </button>
             </div>
-            <div className="px-5 pb-3">
+            <div className="px-3 pb-3">
+              <OrganizationSwitcher hidePersonal={false} appearance={SWITCHER_APPEARANCE} />
+            </div>
+            <div className="px-4 pb-3">
               <ThemeToggle />
             </div>
             <NavLinks pathname={pathname} onNavigate={() => setDrawerOpen(false)} />
@@ -191,14 +227,8 @@ export default function AppShell({ children }) {
 
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 md:flex">
-        <div className="flex items-center justify-between pr-4">
-          <Brand />
-          <div className="flex items-center gap-2">
-            <OrganizationSwitcher hidePersonal={false} />
-            <UserButton />
-          </div>
-        </div>
-        <div className="px-5 pb-3">
+        <SidebarIdentity />
+        <div className="px-4 pb-3">
           <ThemeToggle />
         </div>
         <NavLinks pathname={pathname} />
