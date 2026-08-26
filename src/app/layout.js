@@ -9,6 +9,14 @@ export const metadata = {
   title: "Taskar — Personal & Team Task Tracker",
   description:
     "Track your own work and your team's on shared boards, with a calendar, invites, Jira sync, and auto documentation.",
+  appleWebApp: {
+    title: "Taskar",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport = {
+  themeColor: "#0f172a",
 };
 
 export default function RootLayout({ children }) {
