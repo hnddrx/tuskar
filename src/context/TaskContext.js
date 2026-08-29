@@ -89,11 +89,30 @@ export function TaskProvider({ children }) {
   const [timeEntries, setTimeEntries] = useState([]);
   const lastUserIdRef = useRef(undefined);
 
-  const [team, setTeam] = useState({ tasks: [], comments: [], config: EMPTY_TEAM_CONFIG });
+  const [team, setTeam] = useState({
+    tasks: [],
+    comments: [],
+    configs: {},
+    defaults: EMPTY_TEAM_CONFIG,
+    orgs: [],
+  });
+  // Pulled out so callbacks can depend on the team list alone rather than on
+  // every task edit. Preserved by reference across the other setTeam calls.
+  const teamOrgs = team.orgs;
   const [teamEvents, setTeamEvents] = useState([]);
   const [members, setMembers] = useState([]);
+
+  // "The team you are working in" — the switcher's team, drawn from the same
+  // per-team map the scoped pages read, so selecting a team costs no fetch.
+  // Assignee names come from the member list rather than being stored.
+  const activeTeamConfig = useMemo(
+    () => ({
+      ...((orgId && team.configs?.[orgId]) || team.defaults || EMPTY_TEAM_CONFIG),
+      assignees: members.map((m) => m.name),
+    }),
+    [orgId, team.configs, team.defaults, members],
+  );
   const [teamHydrated, setTeamHydrated] = useState(false);
-  const lastOrgIdRef = useRef(undefined);
 
   const [syncError, setSyncError] = useState(null);
   const failedRequestRef = useRef(null);
@@ -117,18 +136,12 @@ export function TaskProvider({ children }) {
 
   const dismissSyncError = useCallback(() => setSyncError(null), []);
 
-  // Fetches team members and folds the result into team.config.assignees.
-  // A standalone stable callback (not inlined below) so it can double as
-  // the retryable request handed to `syncCall` on failure, and so it can
-  // discard a stale in-flight result if the active org changed underneath
-  // it (checked via lastOrgIdRef, which is updated synchronously before any
-  // async work starts in the effect below).
+  // Everyone you share any team with. A standalone stable callback (not
+  // inlined below) so it can double as the retryable request handed to
+  // `syncCall` on failure.
   const loadMembers = useCallback(async () => {
-    const orgIdAtFetchStart = lastOrgIdRef.current;
     const list = await fetchMembers();
-    if (lastOrgIdRef.current !== orgIdAtFetchStart) return list;
     setMembers(list);
-    setTeam((s) => ({ ...s, config: { ...s.config, assignees: list.map((m) => m.name) } }));
     return list;
   }, []);
 
@@ -216,16 +229,10 @@ export function TaskProvider({ children }) {
     if (!isLoaded || !isSignedIn) return;
     let cancelled = false;
 
-    // Team work is loaded for every team you belong to, so switching teams
-    // changes which one you are working *in* rather than what you can see.
-    // The active team still matters for the board's columns and for where a
-    // new task is created, so a switch reloads.
-    const orgChanged = lastOrgIdRef.current !== undefined && lastOrgIdRef.current !== orgId;
-    if (orgChanged) {
-      setTeamHydrated(false);
-    }
-    lastOrgIdRef.current = orgId;
-
+    // Everything team-scoped — tasks, comments, members and every team's
+    // columns — is loaded for all the teams you are in, so moving the
+    // switcher changes nothing about what has to be fetched. Deliberately not
+    // keyed on the active team: reloading here blanked the page mid-switch.
     (async () => {
       try {
         const server = await fetchJson("/api/team/state");
@@ -245,7 +252,9 @@ export function TaskProvider({ children }) {
         setTeam({
           tasks: server.tasks,
           comments: server.comments,
-          config: { ...server.config, assignees: memberList.map((m) => m.name) },
+          configs: server.configs || {},
+          defaults: server.defaults || EMPTY_TEAM_CONFIG,
+          orgs: server.orgs || [],
         });
         setTeamEvents(events);
       } catch (err) {
@@ -258,7 +267,7 @@ export function TaskProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, isSignedIn, orgId, syncCall, loadMembers]);
+  }, [isLoaded, isSignedIn, syncCall, loadMembers]);
 
   // ---------------------------------------------------------------------
   // Personal mutators
@@ -573,8 +582,11 @@ export function TaskProvider({ children }) {
     const id = newId("task");
     const ts = nowIso();
     const assigneeIds = resolveAssigneeIds(task.assigneeIds, members);
+    const targetOrgId = task.orgId || orgId;
     const record = {
       id,
+      orgId: targetOrgId,
+      orgName: teamOrgs.find((o) => o.id === targetOrgId)?.name || orgName || null,
       ticketId: task.ticketId?.trim() || "N/A",
       parentId: task.parentId || null,
       type: task.type || "Task",
@@ -607,7 +619,7 @@ export function TaskProvider({ children }) {
       })
     );
     return id;
-  }, [syncCall, members]);
+  }, [syncCall, members, orgId, orgName, teamOrgs]);
 
   const updateTeamTask = useCallback((id, patch) => {
     const resolvedPatch = { ...patch };
@@ -699,18 +711,27 @@ export function TaskProvider({ children }) {
     );
   }, [syncCall]);
 
-  const updateTeamConfig = useCallback((key, values) => {
-    setTeam((s) => ({ ...s, config: { ...s.config, [key]: values } }));
+  // `forOrgId` names the team being edited; it defaults to the selected one
+  // so the Configuration screen keeps working unchanged.
+  const updateTeamConfig = useCallback((key, values, forOrgId = null) => {
+    const target = forOrgId || orgId;
+    setTeam((s) => ({
+      ...s,
+      config: target === orgId ? { ...s.config, [key]: values } : s.config,
+      configs: target
+        ? { ...s.configs, [target]: { ...(s.configs?.[target] || {}), [key]: values } }
+        : s.configs,
+    }));
     syncCall(() =>
       fetch("/api/team/state/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key, values }),
+        body: JSON.stringify({ key, values, orgId: target }),
       }).then((res) => {
         if (!res.ok) throw new Error("Failed to update config");
       })
     );
-  }, [syncCall]);
+  }, [syncCall, orgId]);
 
   // Notes load with the rest of the personal state so task pages can show
   // what's linked to a task. The notes screens still mutate through their own
@@ -732,8 +753,8 @@ export function TaskProvider({ children }) {
     [personal.tasks, personal.config]
   );
   const teamTasks = useMemo(
-    () => withComputedProgress(team.tasks, team.config?.statusProgress),
-    [team.tasks, team.config]
+    () => withComputedProgress(team.tasks, activeTeamConfig.statusProgress),
+    [team.tasks, activeTeamConfig]
   );
 
   // ---------------------------------------------------------------------
@@ -853,7 +874,9 @@ export function TaskProvider({ children }) {
       team: {
         tasks: teamTasks,
         comments: team.comments,
-        config: team.config,
+        config: activeTeamConfig,
+        configs: team.configs,
+        orgs: team.orgs,
         events: teamEvents,
         members,
         orgId,
@@ -903,6 +926,7 @@ export function TaskProvider({ children }) {
       mergeJiraIssues,
       resetToSeed,
       team,
+      activeTeamConfig,
       teamTasks,
       members,
       orgId,

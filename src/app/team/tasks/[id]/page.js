@@ -9,6 +9,7 @@ import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/B
 import { ProgressBar } from "@/components/ProgressBar";
 import InlineField from "@/components/InlineField";
 import TeamAssigneePicker from "@/components/TeamAssigneePicker";
+import { membersForTeam } from "@/lib/teamScope";
 import CommentThread from "@/components/CommentThread";
 import PageHeader from "@/components/PageHeader";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -27,13 +28,15 @@ function TeamTaskDetailPageInner() {
   const { id } = useParams();
   const searchParams = useSearchParams();
   const {
-    team: { tasks, comments, config, updateTask, addComment, deleteComment, members, orgId, orgName },
+    team: { tasks, comments, config, configs, updateTask, addComment, deleteComment, members, orgId, orgName },
   } = useTasks();
 
   const [pendingChanges, setPendingChanges] = useState({});
 
 
   const task = tasks.find((t) => t.id === id);
+  const taskMembers = membersForTeam(members, task?.orgId);
+  const taskConfig = (task?.orgId && configs?.[task.orgId]) || config;
 
   if (!task) {
     return (
@@ -147,7 +150,7 @@ function TeamTaskDetailPageInner() {
             type="select"
             inline
             value={effective("type")}
-            options={config.types}
+            options={taskConfig.types}
             onCommit={(v) => patchPending("type", v)}
             renderView={(v) => <TypeBadge type={v} />}
           />
@@ -155,7 +158,7 @@ function TeamTaskDetailPageInner() {
             type="select"
             inline
             value={effective("status")}
-            options={config.statuses}
+            options={taskConfig.statuses}
             onCommit={(v) => patchPending("status", v)}
             renderView={(v) => <StatusBadge status={v} />}
           />
@@ -163,7 +166,7 @@ function TeamTaskDetailPageInner() {
             type="select"
             inline
             value={effective("priority")}
-            options={config.priorities}
+            options={taskConfig.priorities}
             onCommit={(v) => patchPending("priority", v)}
             renderView={(v) => <PriorityBadge priority={v} />}
           />
@@ -197,7 +200,7 @@ function TeamTaskDetailPageInner() {
                 addComment={addComment}
                 deleteComment={deleteComment}
                 showAuthorField={false}
-                members={members}
+                members={taskMembers}
               />
             </section>
 
@@ -237,7 +240,7 @@ function TeamTaskDetailPageInner() {
                   <dt className="text-xs text-slate-400 dark:text-slate-500">Assignees</dt>
                   <dd className="mt-0.5 text-sm text-slate-700 dark:text-slate-300">
                     <TeamAssigneePicker
-                      members={members}
+                      members={taskMembers}
                       selectedIds={pendingAssigneeIds || []}
                       onChange={(ids) => patchPending("assigneeIds", ids)}
                       inline

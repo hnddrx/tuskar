@@ -1,5 +1,5 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { getSql, rowToTeamComment, getTeamMembersById } from "@/lib/db";
+import { getSql, rowToTeamComment, getTeamMembersById, getUserOrgIds } from "@/lib/db";
 import { findMentionedIds } from "@/lib/mentions";
 import { buildMentionEmail } from "@/lib/mentionEmail";
 import { getSmtpConfig, getSmtpConfigForOrg } from "@/lib/smtpCredentials";
@@ -39,12 +39,24 @@ async function resolveMentions(orgId, text, authorUserId) {
 }
 
 export async function POST(request) {
-  const { userId, orgId } = await auth();
-  if (!orgId) {
-    return Response.json({ error: "No active team" }, { status: 400 });
-  }
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: "Not signed in" }, { status: 401 });
+
   const comment = await request.json();
   const sql = getSql();
+
+  // A comment belongs to whichever team owns the task, which is not always
+  // the selected one — you can open a task from any team you are in. Reading
+  // the team off the task also means the mention lookup below searches the
+  // right membership.
+  const [target] = await sql`
+    select org_id from team_tasks where id = ${comment.ticketId}
+  `;
+  const orgId = target?.org_id;
+  const orgIds = await getUserOrgIds(userId);
+  if (!orgId || !orgIds.includes(orgId)) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
 
   const { ids: mentions, recipients } = await resolveMentions(
     orgId,

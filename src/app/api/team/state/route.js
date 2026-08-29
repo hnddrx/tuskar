@@ -44,6 +44,8 @@ export async function GET() {
       tasks: [],
       comments: [],
       orgs: [],
+      configs: {},
+      defaults: DEFAULT_TEAM_CONFIG,
       config: DEFAULT_TEAM_CONFIG,
       hasSynced: false,
     });
@@ -64,25 +66,34 @@ export async function GET() {
     order by created asc
   `;
 
-  // Statuses, priorities and types drive the dropdowns and the board's
-  // columns, which are one set of columns — so they still come from the team
-  // you are working in rather than being merged across teams.
-  const [configRow] = orgId
-    ? await sql`select * from team_board_config where org_id = ${orgId}`
-    : [];
+  // Statuses, priorities and types are per team — they drive that team's
+  // board columns and its dropdowns — so every team's set is returned and the
+  // page picks the one it is showing.
+  const configRows = await sql`
+    select * from team_board_config
+    where org_id = any(${orgIds}::text[])
+  `;
+  const configs = Object.fromEntries(
+    configRows.map((r) => [
+      r.org_id,
+      {
+        statuses: r.statuses,
+        priorities: r.priorities,
+        types: r.types,
+        statusProgress: statusProgressOf(r),
+      },
+    ]),
+  );
+  const activeConfig = orgId ? configs[orgId] : null;
 
   return Response.json({
     tasks: taskRows.map((r) => rowToTeamTask(r, membersById, orgNames)),
     comments: commentRows.map((r) => rowToTeamComment(r, membersById)),
     orgs,
-    config: configRow
-      ? {
-          statuses: configRow.statuses,
-          priorities: configRow.priorities,
-          types: configRow.types,
-          statusProgress: statusProgressOf(configRow),
-        }
-      : DEFAULT_TEAM_CONFIG,
-    hasSynced: Boolean(configRow),
+    configs,
+    // What a team that has never been configured starts from.
+    defaults: DEFAULT_TEAM_CONFIG,
+    config: activeConfig || DEFAULT_TEAM_CONFIG,
+    hasSynced: Boolean(activeConfig),
   });
 }

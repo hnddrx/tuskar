@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
 import { PriorityBadge, SyncBadge } from "@/components/Badge";
@@ -10,17 +11,41 @@ import TeamTaskFormModal from "@/components/TeamTaskFormModal";
 import PageHeader from "@/components/PageHeader";
 import NoActiveTeam from "@/components/NoActiveTeam";
 import { DONE_STATUSES } from "@/lib/constants";
-
-const BOARD_FROM = new URLSearchParams({ from: "/team/board", fromLabel: "Team Board" }).toString();
+import { TEAM_PARAM, resolveTeamScope, tasksForTeam, teamBoardHref } from "@/lib/teamScope";
 
 export default function TeamBoardPage() {
-  const { team: { tasks, config, updateTask, orgId, orgName } } = useTasks();
+  return (
+    <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400 dark:text-slate-500">Loading…</div>}>
+      <TeamBoardPageInner />
+    </Suspense>
+  );
+}
+
+/**
+ * A board is one team's board: its columns come from that team's statuses, so
+ * there is no sensible merged view across teams. The team comes from "?team="
+ * — the sidebar links here per team — and falls back to the selected team for
+ * older links.
+ */
+function TeamBoardPageInner() {
+  const { team: { tasks: allTasks, config, configs, orgs, updateTask, orgId, orgName } } = useTasks();
+  const searchParams = useSearchParams();
   const [modalOpen, setModalOpen] = useState(false);
   const [dragId, setDragId] = useState(null);
 
-  if (!orgId) return <NoActiveTeam title="Team Board" />;
+  const teamScope = resolveTeamScope(searchParams.get(TEAM_PARAM), orgs);
+  const boardOrgId = teamScope || orgId;
 
-  const columns = config.statuses;
+  if (!boardOrgId) return <NoActiveTeam title="Team Board" />;
+
+  const boardName = orgs.find((o) => o.id === boardOrgId)?.name || orgName;
+  const boardConfig = configs?.[boardOrgId] || config;
+  const tasks = tasksForTeam(allTasks, boardOrgId);
+  const columns = boardConfig.statuses;
+  const boardFrom = new URLSearchParams({
+    from: teamBoardHref(teamScope),
+    fromLabel: "Team Board",
+  }).toString();
 
   function onDrop(status) {
     if (dragId) {
@@ -34,7 +59,7 @@ export default function TeamBoardPage() {
       <PageHeader
         title="Team Board"
         scope="team"
-        teamName={orgName}
+        teamName={boardName}
         subtitle="Shared with everyone on this team. Drag a card to change its status."
         actions={
           <button
@@ -70,7 +95,7 @@ export default function TeamBoardPage() {
                   {items.map((t) => (
                     <Link
                       key={t.id}
-                      href={`/team/tasks/${t.id}?${BOARD_FROM}`}
+                      href={`/team/tasks/${t.id}?${boardFrom}`}
                       draggable
                       onDragStart={() => setDragId(t.id)}
                       className={`block cursor-grab rounded-lg border border-slate-200 bg-white p-3 shadow-sm hover:border-slate-300 active:cursor-grabbing transition-colors dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600 ${
@@ -107,7 +132,11 @@ export default function TeamBoardPage() {
         </div>
       </div>
 
-      <TeamTaskFormModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <TeamTaskFormModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        orgId={boardOrgId}
+      />
     </div>
   );
 }

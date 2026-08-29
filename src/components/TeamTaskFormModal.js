@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
 import TeamAssigneePicker from "@/components/TeamAssigneePicker";
+import { membersForTeam } from "@/lib/teamScope";
 
 const EMPTY = {
   ticketId: "",
@@ -22,10 +23,14 @@ const EMPTY = {
   jiraLink: "",
 };
 
-export default function TeamTaskFormModal({ open, onClose, task = null }) {
-  const { team: { config, addTask, updateTask, tasks, members } } = useTasks();
+export default function TeamTaskFormModal({ open, onClose, task = null, orgId = null }) {
+  const { team: { config, configs, addTask, updateTask, tasks, members } } = useTasks();
   const [form, setForm] = useState(EMPTY);
   const isEdit = Boolean(task);
+  const targetOrgId = task?.orgId || orgId || null;
+  // A team's own statuses and types, and only the people actually in it.
+  const teamConfig = (targetOrgId && configs?.[targetOrgId]) || config;
+  const teamMembers = membersForTeam(members, targetOrgId);
 
   // Reset the form whenever the modal opens or the target task changes.
   useEffect(() => {
@@ -49,10 +54,10 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
               githubBranch: task.githubBranch === "N/A" ? "" : task.githubBranch,
               jiraLink: task.jiraLink || "",
             }
-          : { ...EMPTY, status: config.statuses[0] || "Not Started" }
+          : { ...EMPTY, status: teamConfig.statuses[0] || "Not Started" }
       );
     }
-  }, [open, task, config.statuses]);
+  }, [open, task, teamConfig.statuses]);
 
   if (!open) return null;
 
@@ -73,7 +78,7 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
     if (isEdit) {
       updateTask(task.id, payload);
     } else {
-      addTask(payload);
+      addTask({ ...payload, orgId: targetOrgId });
     }
     onClose();
   }
@@ -133,7 +138,7 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
                 onChange={(e) => set("type", e.target.value)}
                 className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               >
-                {config.types.map((t) => (
+                {teamConfig.types.map((t) => (
                   <option key={t}>{t}</option>
                 ))}
               </select>
@@ -168,7 +173,7 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
                 onChange={(e) => set("status", e.target.value)}
                 className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               >
-                {config.statuses.map((s) => (
+                {teamConfig.statuses.map((s) => (
                   <option key={s}>{s}</option>
                 ))}
               </select>
@@ -182,7 +187,7 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
                 onChange={(e) => set("priority", e.target.value)}
                 className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
               >
-                {config.priorities.map((p) => (
+                {teamConfig.priorities.map((p) => (
                   <option key={p}>{p}</option>
                 ))}
               </select>
@@ -192,7 +197,7 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
                 Assignees
               </label>
               <TeamAssigneePicker
-                members={members}
+                members={teamMembers}
                 selectedIds={form.assigneeIds}
                 onChange={(ids) => set("assigneeIds", ids)}
               />

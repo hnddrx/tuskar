@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Hash, ArrowLeft, Plus, Loader2, X } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useChat } from "@/context/ChatContext";
@@ -8,8 +9,17 @@ import { useConversation } from "@/lib/useConversation";
 import { dmConversationId } from "@/lib/chat";
 import ChatMessages, { initials, PresenceDot } from "@/components/ChatMessages";
 import ChatComposer from "@/components/ChatComposer";
+import { CHAT_PARAM } from "@/lib/teamScope";
 
 export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400 dark:text-slate-500">Loading…</div>}>
+      <ChatPageInner />
+    </Suspense>
+  );
+}
+
+function ChatPageInner() {
   const {
     userId,
     members,
@@ -19,9 +29,22 @@ export default function ChatPage() {
     refresh,
   } = useChat();
 
-  const [active, setActive] = useState(null);
-  const [showList, setShowList] = useState(true);
+  const searchParams = useSearchParams();
+  const requested = searchParams.get(CHAT_PARAM);
+
+  const [active, setActive] = useState(requested || null);
+  // On a phone the list and the conversation share the screen; arriving with
+  // a conversation named should land on it, not on the list.
+  const [showList, setShowList] = useState(!requested);
   const [composing, setComposing] = useState(false);
+
+  // Following another team's link while already on this page.
+  useEffect(() => {
+    if (!requested) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setActive(requested);
+    setShowList(false);
+  }, [requested]);
 
   // Land on the first conversation once the list arrives.
   useEffect(() => {

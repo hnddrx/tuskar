@@ -1,14 +1,25 @@
 import { auth } from "@clerk/nextjs/server";
-import { getSql } from "@/lib/db";
+import { getSql, getUserOrgIds } from "@/lib/db";
 
 const ALLOWED_KEYS = ["statuses", "priorities", "types", "statusProgress"];
 
 export async function PUT(request) {
-  const { orgId } = await auth();
+  const { userId, orgId: activeOrgId } = await auth();
+  if (!userId) return Response.json({ error: "Not signed in" }, { status: 401 });
+
+  const { key, values, orgId: bodyOrgId } = await request.json();
+
+  // Columns belong to one team, and the board being edited is not always the
+  // selected one. Membership decides, not the switcher.
+  const orgId = bodyOrgId || activeOrgId;
   if (!orgId) {
-    return Response.json({ error: "No active team" }, { status: 400 });
+    return Response.json({ error: "No team given" }, { status: 400 });
   }
-  const { key, values } = await request.json();
+  const orgIds = await getUserOrgIds(userId);
+  if (!orgIds.includes(orgId)) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
   const sql = getSql();
 
   if (!ALLOWED_KEYS.includes(key)) {

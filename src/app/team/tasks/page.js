@@ -20,6 +20,7 @@ import ScopeBadge from "@/components/ScopeBadge";
 import { useNow } from "@/lib/useNow";
 import { formatDuration, totalForTask } from "@/lib/time";
 import TeamTaskFormModal from "@/components/TeamTaskFormModal";
+import { TEAM_PARAM, resolveTeamScope, tasksForTeam } from "@/lib/teamScope";
 import PageHeader from "@/components/PageHeader";
 import ColumnsPicker from "@/components/ColumnsPicker";
 import TaskFiltersPanel, {
@@ -233,22 +234,28 @@ export default function TeamTasksPage() {
 
 function TeamTasksPageInner() {
   const {
-    team: { tasks: rawTasks, comments, config, deleteTask, orgId },
+    team: { tasks: rawTasks, comments, config, configs, orgs, deleteTask, orgId },
     time: { entries: timeEntries },
   } = useTasks();
   // Coarse tick — see the personal table.
   const timeNow = useNow(60000);
-  const tasks = useMemo(
-    () =>
-      rawTasks.map((t) => ({
-        ...t,
-        trackedSeconds: totalForTask(timeEntries, t.id, timeNow),
-      })),
-    [rawTasks, timeEntries, timeNow]
-  );
   const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // "?team=" narrows the list to one team; without it you get every team you
+  // are in. An id for a team you have left falls back to the wider view.
+  const teamScope = resolveTeamScope(searchParams.get(TEAM_PARAM), orgs);
+  const scopedOrg = teamScope ? orgs.find((o) => o.id === teamScope) : null;
+
+  const tasks = useMemo(
+    () =>
+      tasksForTeam(rawTasks, teamScope).map((t) => ({
+        ...t,
+        trackedSeconds: totalForTask(timeEntries, t.id, timeNow),
+      })),
+    [rawTasks, teamScope, timeEntries, timeNow]
+  );
   const { query, filters, sort, page, pageSize } = useMemo(
     () => parseTasksSearchParams(searchParams),
     [searchParams]
@@ -261,7 +268,9 @@ function TeamTasksPageInner() {
 
   function pushState(patch) {
     const next = { query, filters, sort, page, pageSize, ...patch };
-    const qs = buildTasksSearch(next);
+    const params = new URLSearchParams(buildTasksSearch(next));
+    if (teamScope) params.set(TEAM_PARAM, teamScope);
+    const qs = params.toString();
     router.replace(qs ? `/team/tasks?${qs}` : "/team/tasks", { scroll: false });
   }
 
@@ -365,6 +374,13 @@ function TeamTasksPageInner() {
     [tasks],
   );
 
+  // Statuses and priorities belong to a team, so a scoped list filters by
+  // that team's set rather than the selected team's.
+  const scopedConfig = (teamScope && configs?.[teamScope]) || config;
+
+  // Where a new task would go: the team on screen, else the selected one.
+  const createIn = teamScope || orgId;
+
   const sorted = useMemo(() => {
     const dir = sort.dir === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => dir * compareValues(a, b, sort.key));
@@ -410,14 +426,19 @@ function TeamTasksPageInner() {
       <PageHeader
         title="Team Tasks"
         scope="team"
+        teamName={scopedOrg?.name}
         subtitle={`${sorted.length} of ${tasks.length} task${tasks.length === 1 ? "" : "s"} · ${
-          teamCount === 1 ? "shared with everyone on this team" : `across ${teamCount} teams`
+          scopedOrg
+            ? "shared with everyone on this team"
+            : teamCount === 1
+              ? "shared with everyone on this team"
+              : `across ${teamCount} teams`
         }`}
         actions={
           <button
             onClick={openNew}
-            disabled={!orgId}
-            title={orgId ? undefined : "Pick a team in the sidebar to add a task to it"}
+            disabled={!createIn}
+            title={createIn ? undefined : "Open a team in the sidebar to add a task to it"}
             className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
           >
             <Plus size={16} /> New task
@@ -450,7 +471,7 @@ function TeamTasksPageInner() {
           <TaskFiltersPanel
             open={filtersOpen}
             onOpenChange={setFiltersOpen}
-            config={config}
+            config={scopedConfig}
             filters={filters}
             onChange={updateFilters}
           />
@@ -640,6 +661,7 @@ function TeamTasksPageInner() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         task={editing}
+        orgId={createIn}
       />
     </div>
   );

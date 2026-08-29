@@ -1,12 +1,25 @@
 import { auth } from "@clerk/nextjs/server";
-import { getSql, rowToTeamTask, getTeamMembersById } from "@/lib/db";
+import { getSql, rowToTeamTask, getTeamMembersById, getUserOrgs } from "@/lib/db";
 
 export async function POST(request) {
-  const { userId, orgId } = await auth();
-  if (!orgId) {
-    return Response.json({ error: "No active team" }, { status: 400 });
-  }
+  const { userId, orgId: activeOrgId } = await auth();
+  if (!userId) return Response.json({ error: "Not signed in" }, { status: 401 });
+
   const task = await request.json();
+
+  // The team is named by the caller, because the page can be showing a team
+  // other than the selected one. It is only honoured if you are in it — the
+  // selected team is the fallback, not the authority.
+  const orgId = task.orgId || activeOrgId;
+  if (!orgId) {
+    return Response.json({ error: "No team given" }, { status: 400 });
+  }
+  const orgs = await getUserOrgs(userId);
+  const org = orgs.find((o) => o.id === orgId);
+  if (!org) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
   const sql = getSql();
 
   const [row] = await sql`
@@ -26,5 +39,5 @@ export async function POST(request) {
   `;
 
   const membersById = await getTeamMembersById(orgId);
-  return Response.json(rowToTeamTask(row, membersById), { status: 201 });
+  return Response.json(rowToTeamTask(row, membersById, { [orgId]: org.name }), { status: 201 });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -14,15 +14,14 @@ import {
   BookOpenText,
   Menu,
   X,
-  Users,
   CalendarDays,
   Timer,
   Square,
   Mail,
-  MessagesSquare,
 } from "lucide-react";
 import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
+import TeamsNav from "@/components/TeamsNav";
 import { DONE_STATUSES } from "@/lib/constants";
 import ThemeToggle from "@/components/ThemeToggle";
 import Logo, { Wordmark } from "@/components/Logo";
@@ -52,15 +51,7 @@ const NAV_SECTIONS = [
       { href: "/notes", label: "Notes", icon: NotebookText },
     ],
   },
-  {
-    label: "Team",
-    accent: "team",
-    items: [
-      { href: "/team/tasks", label: "Team Tasks", icon: Users },
-      { href: "/team/board", label: "Team Board", icon: KanbanSquare },
-      { href: "/chat", label: "Chat", icon: MessagesSquare },
-    ],
-  },
+  { id: "teams" },
   {
     label: null,
     items: [
@@ -118,8 +109,13 @@ const ACTIVE_STYLES = {
 function NavLinks({ pathname, onNavigate }) {
   return (
     <nav className="flex-1 overflow-y-auto px-3 pb-2">
-      {NAV_SECTIONS.map((section, i) => (
-        <div key={section.label || `group-${i}`} className={i === 0 ? "" : "mt-4"}>
+      {NAV_SECTIONS.map((section, i) =>
+        section.id === "teams" ? (
+          <Suspense key="teams" fallback={null}>
+            <TeamsNav onNavigate={onNavigate} />
+          </Suspense>
+        ) : (
+          <div key={section.label || `group-${i}`} className={i === 0 ? "" : "mt-4"}>
           {section.label && (
             <p className="mb-1 flex items-center gap-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
               <span
@@ -152,8 +148,9 @@ function NavLinks({ pathname, onNavigate }) {
               );
             })}
           </div>
-        </div>
-      ))}
+          </div>
+        )
+      )}
     </nav>
   );
 }

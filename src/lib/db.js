@@ -210,7 +210,11 @@ export async function getUserOrgIds(userId) {
   return data.map((m) => m.organization?.id).filter(Boolean);
 }
 
-/** Everyone the user shares a team with, keyed by user id. */
+/**
+ * Everyone the user shares a team with, keyed by user id. Someone in two of
+ * your teams appears once, carrying both team ids, so the caller can narrow
+ * the list to one team without another round trip to Clerk.
+ */
 export async function getReachableMembers(userId) {
   const orgIds = await getUserOrgIds(userId);
   const clerk = await clerkClient();
@@ -223,7 +227,12 @@ export async function getReachableMembers(userId) {
     });
     for (const m of data) {
       const id = m.publicUserData?.userId;
-      if (!id || byId.has(id)) continue;
+      if (!id) continue;
+      const existing = byId.get(id);
+      if (existing) {
+        existing.orgIds.push(orgId);
+        continue;
+      }
       byId.set(id, {
         id,
         name:
@@ -231,6 +240,7 @@ export async function getReachableMembers(userId) {
           m.publicUserData.identifier ||
           "Unknown",
         email: m.publicUserData.identifier || null,
+        orgIds: [orgId],
       });
     }
   }
