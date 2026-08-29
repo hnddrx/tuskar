@@ -10,6 +10,48 @@ import { ROOM_CONVERSATION, groupMessages } from "@/lib/chat";
 // not keep polling.
 const POLL_MS = 4000;
 
+function SidebarSection({ label }) {
+  return (
+    <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+      {label}
+    </p>
+  );
+}
+
+function ConversationRow({ conversation, label, active, onSelect }) {
+  const isRoom = conversation.kind === "room";
+  return (
+    <button
+      onClick={onSelect}
+      className={`flex w-full items-center gap-2 px-3 py-2 text-left transition-colors ${
+        active ? "bg-slate-100 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
+      }`}
+    >
+      {isRoom ? (
+        <Hash size={15} className="shrink-0 text-slate-400" />
+      ) : (
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+          {initials(label)}
+        </span>
+      )}
+      <span
+        className={`min-w-0 flex-1 truncate text-sm ${
+          conversation.unread > 0
+            ? "font-semibold text-slate-900 dark:text-slate-100"
+            : "text-slate-700 dark:text-slate-300"
+        }`}
+      >
+        {label}
+      </span>
+      {conversation.unread > 0 && (
+        <span className="shrink-0 rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
+          {conversation.unread}
+        </span>
+      )}
+    </button>
+  );
+}
+
 function initials(name) {
   return String(name || "?")
     .split(/\s+/)
@@ -155,6 +197,12 @@ export default function ChatPage() {
   const conversations = state?.conversations || [];
   const activeConversation = conversations.find((c) => c.id === active);
 
+  // Split the way Odoo's Discuss does: a channel and a private conversation
+  // are different kinds of thing, and an undifferentiated list gives no clue
+  // which is which.
+  const channels = conversations.filter((c) => c.kind === "room");
+  const directMessages = conversations.filter((c) => c.kind === "dm");
+
   async function send(e) {
     e.preventDefault();
     const body = draft.trim();
@@ -206,35 +254,37 @@ export default function ChatPage() {
               showList ? "block" : "hidden"
             }`}
           >
-            {conversations.map((c) => (
-              <button
+            <SidebarSection label="Channels" />
+            {channels.map((c) => (
+              <ConversationRow
                 key={c.id}
-                onClick={() => {
+                conversation={c}
+                label={orgName || "Team"}
+                active={c.id === active}
+                onSelect={() => {
                   setActive(c.id);
                   setShowList(false);
                 }}
-                className={`flex w-full items-center gap-2 border-b border-slate-100 px-3 py-2.5 text-left transition-colors dark:border-slate-800 ${
-                  c.id === active
-                    ? "bg-slate-100 dark:bg-slate-800"
-                    : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                }`}
-              >
-                {c.kind === "room" ? (
-                  <Hash size={15} className="shrink-0 text-slate-400" />
-                ) : (
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                    {initials(c.name)}
-                  </span>
-                )}
-                <span className="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-300">
-                  {c.kind === "room" ? orgName || "Team" : c.name}
-                </span>
-                {c.unread > 0 && (
-                  <span className="shrink-0 rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
-                    {c.unread}
-                  </span>
-                )}
-              </button>
+              />
+            ))}
+
+            <SidebarSection label="Direct messages" />
+            {directMessages.length === 0 && (
+              <p className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500">
+                Nobody else on this team yet.
+              </p>
+            )}
+            {directMessages.map((c) => (
+              <ConversationRow
+                key={c.id}
+                conversation={c}
+                label={c.name}
+                active={c.id === active}
+                onSelect={() => {
+                  setActive(c.id);
+                  setShowList(false);
+                }}
+              />
             ))}
           </aside>
 
