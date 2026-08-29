@@ -87,6 +87,8 @@ export default function CalendarPage() {
   const [scope, setScope] = useState("all");
   const [selected, setSelected] = useState(todayKey());
   const [composeOpen, setComposeOpen] = useState(false);
+  // Outcome of the last invite send: sending / sent / error / unconfigured.
+  const [sendState, setSendState] = useState(null);
 
   const organizer = useMemo(
     () => ({
@@ -213,9 +215,9 @@ export default function CalendarPage() {
     downloadIcs(`${raw.replace(/[^a-z0-9-]/gi, "_").slice(0, 60)}.ics`, ics);
   }
 
-  // Downloads the .ics *and* opens the mail client — mailto: can't carry an
-  // attachment, so the user attaches the file the browser just saved.
-  function emailInvite(entry) {
+  // The old behaviour, kept as the fallback: download the .ics and open the
+  // mail client, because mailto: cannot carry an attachment itself.
+  function mailtoInvite(entry) {
     downloadInvite(entry);
     window.location.href =
       entry.kind === "task"
@@ -225,6 +227,52 @@ export default function CalendarPage() {
             url: absoluteUrl(entry),
           })
         : buildEventMailto({ event: entry.event });
+  }
+
+  // Events are sent for real, with the .ics attached, from the server. Task
+  // invites still go through the mail client — a task has no attendee
+  // snapshot of its own, so its guest list is derived from team membership
+  // at send time rather than stored.
+  async function emailInvite(entry) {
+    if (entry.kind !== "event") {
+      mailtoInvite(entry);
+      return;
+    }
+
+    const attendees = attendeesFor(entry);
+    const ok = await confirm({
+      title: `Send this invite to ${attendees.length} ${
+        attendees.length === 1 ? "person" : "people"
+      }?`,
+      message: attendees.map((a) => a.email).filter(Boolean).join(", "),
+      confirmLabel: "Send",
+    });
+    if (!ok) return;
+
+    setSendState({ status: "sending", key: entryKey(entry) });
+    try {
+      const res = await fetch("/api/email/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope: entry.scope, eventId: entry.event.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.status === 503) {
+        // Not configured yet — fall back rather than leaving the user stuck.
+        setSendState({ status: "unconfigured", message: data.error });
+        mailtoInvite(entry);
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || `Send failed (${res.status})`);
+
+      setSendState({
+        status: "sent",
+        message: `Invite sent to ${data.sent} ${data.sent === 1 ? "person" : "people"}.`,
+      });
+    } catch (err) {
+      setSendState({ status: "error", message: err.message || "Failed to send the invite" });
+    }
   }
 
   async function removeEvent(entry) {
@@ -253,6 +301,30 @@ export default function CalendarPage() {
 
   return (
     <div className="flex-1">
+      {sendState && sendState.status !== "sending" && (
+        <div className="px-4 pt-4 sm:px-8">
+          <div
+            role="status"
+            className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-xs ${
+              sendState.status === "sent"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300"
+                : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
+            }`}
+          >
+            <span>
+              {sendState.status === "unconfigured"
+                ? `${sendState.message} Your mail client was opened with the invite attached instead.`
+                : sendState.message}
+            </span>
+            <button
+              onClick={() => setSendState(null)}
+              className="shrink-0 font-medium underline-offset-2 hover:underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
       <PageHeader
         title="Calendar"
         subtitle="Tasks by due date, plus meetings you've scheduled. Invite anyone by email."
@@ -498,9 +570,16 @@ export default function CalendarPage() {
                         {attendees.length > 0 && (
                           <button
                             onClick={() => emailInvite(e)}
+                            disabled={
+                              sendState?.status === "sending" &&
+                              sendState.key === entryKey(e)
+                            }
                             className="flex items-center gap-1.5 rounded-md bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
                           >
-                            <Mail size={13} /> Send invite
+                            <Mail size={13} />
+                            {sendState?.status === "sending" && sendState.key === entryKey(e)
+                              ? "Sending…"
+                              : "Send invite"}
                           </button>
                         )}
                         {isEvent && (
