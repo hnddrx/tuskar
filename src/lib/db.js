@@ -103,6 +103,17 @@ export function rowToTimeEntry(row) {
   };
 }
 
+export function rowToChatMessage(row, membersById = {}) {
+  return {
+    id: row.id,
+    conversationId: row.conversation_id,
+    authorUserId: row.author_user_id,
+    author: membersById[row.author_user_id] || "Unknown",
+    body: row.body,
+    createdAt: row.created_at,
+  };
+}
+
 export async function getTeamMembersById(orgId) {
   const clerk = await clerkClient();
   const { data } = await clerk.organizations.getOrganizationMembershipList({

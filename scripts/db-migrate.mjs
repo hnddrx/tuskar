@@ -271,8 +271,37 @@ async function migrate() {
     on time_entries (user_id) where ended_at is null
   `;
 
+  // Team chat. A conversation is either the team room or a direct message;
+  // a DM has no row of its own, its id being derived from the pair (see
+  // lib/chat.js), so there is nothing to keep in sync.
+  await sql`
+    create table if not exists chat_messages (
+      id text primary key,
+      org_id text not null,
+      conversation_id text not null,
+      author_user_id text not null,
+      body text not null default '',
+      created_at text not null
+    )
+  `;
+  // Reads are always "this conversation, in order, after a cursor".
+  await sql`
+    create index if not exists chat_messages_conversation_idx
+    on chat_messages (org_id, conversation_id, created_at)
+  `;
+
+  await sql`
+    create table if not exists chat_reads (
+      user_id text not null,
+      org_id text not null,
+      conversation_id text not null,
+      last_read_at text not null,
+      primary key (user_id, org_id, conversation_id)
+    )
+  `;
+
   console.log(
-    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries, smtp_config ready (team_comments.mentions added)."
+    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries, smtp_config, chat_messages, chat_reads ready."
   );
 }
 

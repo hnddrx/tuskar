@@ -19,6 +19,7 @@ import {
   Timer,
   Square,
   Mail,
+  MessagesSquare,
 } from "lucide-react";
 import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
@@ -56,6 +57,7 @@ const NAV_SECTIONS = [
     items: [
       { href: "/team/tasks", label: "Team Tasks", icon: Users },
       { href: "/team/board", label: "Team Board", icon: KanbanSquare },
+      { href: "/chat", label: "Chat", icon: MessagesSquare },
     ],
   },
   {
