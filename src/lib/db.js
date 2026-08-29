@@ -131,10 +131,12 @@ export async function getTeamMembersById(orgId) {
   return map;
 }
 
-export function rowToTeamTask(row, membersById = {}) {
+export function rowToTeamTask(row, membersById = {}, orgNames = {}) {
   const assigneeIds = Array.isArray(row.assignee_ids) ? row.assignee_ids : [];
   return {
     id: row.id,
+    orgId: row.org_id,
+    orgName: orgNames[row.org_id] || null,
     ticketId: row.ticket_id,
     parentId: row.parent_id,
     type: row.type,
@@ -162,6 +164,7 @@ export function rowToTeamTask(row, membersById = {}) {
 export function rowToTeamComment(row, membersById = {}) {
   return {
     id: row.id,
+    orgId: row.org_id,
     ticketId: row.ticket_id,
     parentCommentId: row.parent_comment_id,
     created: row.created,
@@ -184,6 +187,19 @@ export function rowToTeamComment(row, membersById = {}) {
  * team happens to be selected, so switching teams cannot open or close a
  * conversation you were already in.
  */
+/** Every organization a user belongs to, with its name. */
+export async function getUserOrgs(userId) {
+  if (!userId) return [];
+  const clerk = await clerkClient();
+  const { data } = await clerk.users.getOrganizationMembershipList({
+    userId,
+    limit: 100,
+  });
+  return data
+    .map((m) => ({ id: m.organization?.id, name: m.organization?.name || "Team" }))
+    .filter((o) => o.id);
+}
+
 export async function getUserOrgIds(userId) {
   if (!userId) return [];
   const clerk = await clerkClient();

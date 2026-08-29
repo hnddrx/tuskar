@@ -13,7 +13,6 @@ import CommentThread from "@/components/CommentThread";
 import PageHeader from "@/components/PageHeader";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import TaskTimePanel from "@/components/TaskTimePanel";
-import NoActiveTeam from "@/components/NoActiveTeam";
 import { generateTaskDoc, downloadMarkdown } from "@/lib/docGenerator";
 
 export default function TeamTaskDetailPage() {
@@ -33,7 +32,6 @@ function TeamTaskDetailPageInner() {
 
   const [pendingChanges, setPendingChanges] = useState({});
 
-  if (!orgId) return <NoActiveTeam title="Team Task" />;
 
   const task = tasks.find((t) => t.id === id);
 
@@ -108,7 +106,7 @@ function TeamTaskDetailPageInner() {
     <div className="flex-1">
       <PageHeader
         scope="team"
-        teamName={orgName}
+        teamName={task.orgName || orgName}
         title={
           <InlineField
             value={effective("name")}

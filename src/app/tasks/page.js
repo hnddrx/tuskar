@@ -83,7 +83,7 @@ const CELL_DEFS = {
         </Link>
         {t.scope === "team" && (
           <span className="mt-0.5 inline-block">
-            <ScopeBadge scope="team" teamName={teamName} />
+            <ScopeBadge scope="team" teamName={t.orgName || teamName} />
           </span>
         )}
         {parent && (

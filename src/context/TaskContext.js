@@ -216,20 +216,15 @@ export function TaskProvider({ children }) {
     if (!isLoaded || !isSignedIn) return;
     let cancelled = false;
 
+    // Team work is loaded for every team you belong to, so switching teams
+    // changes which one you are working *in* rather than what you can see.
+    // The active team still matters for the board's columns and for where a
+    // new task is created, so a switch reloads.
     const orgChanged = lastOrgIdRef.current !== undefined && lastOrgIdRef.current !== orgId;
-    if (orgChanged || !orgId) {
+    if (orgChanged) {
       setTeamHydrated(false);
-      setTeam({ tasks: [], comments: [], config: EMPTY_TEAM_CONFIG });
-      setTeamEvents([]);
-      setMembers([]);
     }
     lastOrgIdRef.current = orgId;
-
-    if (!orgId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setTeamHydrated(true);
-      return;
-    }
 
     (async () => {
       try {

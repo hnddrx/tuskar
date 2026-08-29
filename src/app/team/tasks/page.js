@@ -16,11 +16,11 @@ import { useTasks } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/Badge";
 import { ProgressBar } from "@/components/ProgressBar";
+import ScopeBadge from "@/components/ScopeBadge";
 import { useNow } from "@/lib/useNow";
 import { formatDuration, totalForTask } from "@/lib/time";
 import TeamTaskFormModal from "@/components/TeamTaskFormModal";
 import PageHeader from "@/components/PageHeader";
-import NoActiveTeam from "@/components/NoActiveTeam";
 import ColumnsPicker from "@/components/ColumnsPicker";
 import TaskFiltersPanel, {
   DEFAULT_FILTERS,
@@ -79,6 +79,11 @@ const CELL_DEFS = {
         >
           {t.name}
         </Link>
+        {t.orgName && (
+          <span className="mt-0.5 inline-block">
+            <ScopeBadge scope="team" teamName={t.orgName} />
+          </span>
+        )}
         {parent && (
           <span className="text-xs text-slate-400 dark:text-slate-500">↳ subtask of {parent.ticketId}</span>
         )}
@@ -228,7 +233,7 @@ export default function TeamTasksPage() {
 
 function TeamTasksPageInner() {
   const {
-    team: { tasks: rawTasks, comments, config, deleteTask, orgId, orgName },
+    team: { tasks: rawTasks, comments, config, deleteTask, orgId },
     time: { entries: timeEntries },
   } = useTasks();
   // Coarse tick — see the personal table.
@@ -353,6 +358,13 @@ function TeamTasksPageInner() {
     });
   }, [tasks, query, filters, commentsByTask]);
 
+  // How many teams these tasks actually come from — the per-row badge says
+  // which one, this says how wide the list is.
+  const teamCount = useMemo(
+    () => new Set(tasks.map((t) => t.orgId).filter(Boolean)).size || 1,
+    [tasks],
+  );
+
   const sorted = useMemo(() => {
     const dir = sort.dir === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => dir * compareValues(a, b, sort.key));
@@ -390,8 +402,6 @@ function TeamTasksPageInner() {
     setModalOpen(true);
   }
 
-  if (!orgId) return <NoActiveTeam title="Team Task Table" />;
-
   const hasActiveQuery = query.trim().length > 0;
   const activeFilterCount = countActiveFilters(filters);
 
@@ -400,12 +410,15 @@ function TeamTasksPageInner() {
       <PageHeader
         title="Team Tasks"
         scope="team"
-        teamName={orgName}
-        subtitle={`${sorted.length} of ${tasks.length} task${tasks.length === 1 ? "" : "s"} · shared with everyone on this team`}
+        subtitle={`${sorted.length} of ${tasks.length} task${tasks.length === 1 ? "" : "s"} · ${
+          teamCount === 1 ? "shared with everyone on this team" : `across ${teamCount} teams`
+        }`}
         actions={
           <button
             onClick={openNew}
-            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors dark:bg-slate-100 dark:text-slate-900"
+            disabled={!orgId}
+            title={orgId ? undefined : "Pick a team in the sidebar to add a task to it"}
+            className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
           >
             <Plus size={16} /> New task
           </button>

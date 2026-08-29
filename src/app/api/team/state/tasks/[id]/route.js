@@ -1,21 +1,21 @@
 import { auth } from "@clerk/nextjs/server";
-import { getSql, rowToTeamTask, getTeamMembersById } from "@/lib/db";
+import { getSql, rowToTeamTask, getTeamMembersById, getUserOrgIds } from "@/lib/db";
 
 export async function PATCH(request, { params }) {
-  const { orgId } = await auth();
+  const { userId } = await auth();
   const { id } = await params;
-  if (!orgId) {
-    return Response.json({ error: "No active team" }, { status: 400 });
-  }
   const patch = await request.json();
   const sql = getSql();
 
-  const [existing] = await sql`
-    select * from team_tasks where id = ${id} and org_id = ${orgId}
-  `;
-  if (!existing) {
+  // Look the task up by id, then check the caller belongs to its team. Scoping
+  // the query to the active team instead would make a task from another team
+  // fail as "not found" even though it is plainly on screen.
+  const [existing] = await sql`select * from team_tasks where id = ${id}`;
+  const orgIds = await getUserOrgIds(userId);
+  if (!existing || !orgIds.includes(existing.org_id)) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
+  const orgId = existing.org_id;
 
   const membersById = await getTeamMembersById(orgId);
   const merged = { ...rowToTeamTask(existing, membersById), ...patch };
@@ -47,12 +47,20 @@ export async function PATCH(request, { params }) {
 }
 
 export async function DELETE(_request, { params }) {
-  const { orgId } = await auth();
+  const { userId } = await auth();
   const { id } = await params;
-  if (!orgId) {
-    return Response.json({ error: "No active team" }, { status: 400 });
-  }
   const sql = getSql();
-  await sql`delete from team_tasks where id = ${id} and org_id = ${orgId}`;
+
+  // Deleting is authorised by membership of the task's own team, so the
+  // delete cannot silently do nothing when another team is selected.
+  const [existing] = await sql`select org_id from team_tasks where id = ${id}`;
+  const orgIds = await getUserOrgIds(userId);
+  if (!existing || !orgIds.includes(existing.org_id)) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  await sql`delete from team_comments where ticket_id = ${id} and org_id = ${existing.org_id}`;
+  await sql`update team_tasks set parent_id = null where parent_id = ${id} and org_id = ${existing.org_id}`;
+  await sql`delete from team_tasks where id = ${id} and org_id = ${existing.org_id}`;
   return Response.json({ ok: true });
 }

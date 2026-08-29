@@ -1,9 +1,14 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
+import { getReachableMembers } from "@/lib/db";
 
 export async function GET() {
-  const { orgId } = await auth();
+  const { userId, orgId } = await auth();
+  if (!userId) return Response.json({ error: "Not signed in" }, { status: 401 });
+
+  // No team selected still has an answer: everyone you share any team with.
   if (!orgId) {
-    return Response.json({ error: "No active team" }, { status: 400 });
+    const { members } = await getReachableMembers(userId);
+    return Response.json(members);
   }
 
   const clerk = await clerkClient();
