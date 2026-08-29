@@ -290,6 +290,21 @@ async function migrate() {
     on chat_messages (org_id, conversation_id, created_at)
   `;
 
+  // A file sent with a message, stored the same way note attachments are.
+  await sql`alter table chat_messages add column if not exists attachment jsonb`;
+
+  // Presence is a heartbeat, not a socket: each client stamps its last-seen
+  // time while its tab is visible, and status is derived from how stale that
+  // is (see lib/chat.js).
+  await sql`
+    create table if not exists chat_presence (
+      user_id text not null,
+      org_id text not null,
+      last_seen_at text not null,
+      primary key (user_id, org_id)
+    )
+  `;
+
   await sql`
     create table if not exists chat_reads (
       user_id text not null,
@@ -301,7 +316,7 @@ async function migrate() {
   `;
 
   console.log(
-    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries, smtp_config, chat_messages, chat_reads ready."
+    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries, smtp_config, chat_messages, chat_reads, chat_presence ready."
   );
 }
 

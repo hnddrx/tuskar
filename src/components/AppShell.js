@@ -26,6 +26,8 @@ import { useTasks } from "@/context/TaskContext";
 import { DONE_STATUSES } from "@/lib/constants";
 import ThemeToggle from "@/components/ThemeToggle";
 import Logo, { Wordmark } from "@/components/Logo";
+import ChatDock from "@/components/ChatDock";
+import MessagingMenu from "@/components/MessagingMenu";
 import { useNow } from "@/lib/useNow";
 import { entrySeconds } from "@/lib/time";
 import { formatCountdown } from "@/lib/pomodoro";
@@ -95,7 +97,8 @@ function SidebarIdentity() {
     <>
       <div className="flex items-center gap-2 px-4 pb-3 pt-5">
         <Brand />
-        <div className="shrink-0">
+        <div className="flex shrink-0 items-center gap-1">
+          <MessagingMenu />
           <UserButton />
         </div>
       </div>
@@ -269,6 +272,9 @@ export default function AppShell({ children }) {
         >
           <Menu size={20} />
         </button>
+        <div className="md:hidden">
+          <MessagingMenu />
+        </div>
         <div className="flex flex-1 items-center gap-2">
           <Logo size={26} />
           <span className="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">
@@ -327,6 +333,9 @@ export default function AppShell({ children }) {
         <SyncErrorBanner error={syncError} onRetry={retrySync} onDismiss={dismissSyncError} />
         {children}
       </div>
+
+      {/* Docked conversations sit above everything, on every page. */}
+      <ChatDock />
     </div>
   );
 }

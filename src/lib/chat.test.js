@@ -10,6 +10,7 @@ import {
   otherParticipant,
   unreadCount,
   groupMessages,
+  presenceStatus,
 } from "./chat.js";
 
 // --- conversation ids ------------------------------------------------------
@@ -146,4 +147,35 @@ test("the first message of a new day is marked so a date divider can be shown", 
 
 test("grouping nothing yields nothing", () => {
   assert.deepEqual(groupMessages([]), []);
+});
+
+// --- presence --------------------------------------------------------------
+
+test("someone seen seconds ago is online", () => {
+  const now = "2026-08-29T10:00:00.000Z";
+  assert.equal(presenceStatus("2026-08-29T09:59:30.000Z", now), "online");
+});
+
+test("someone seen a couple of minutes ago is away", () => {
+  const now = "2026-08-29T10:00:00.000Z";
+  assert.equal(presenceStatus("2026-08-29T09:58:00.000Z", now), "away");
+});
+
+test("someone seen long ago is offline", () => {
+  const now = "2026-08-29T10:00:00.000Z";
+  assert.equal(presenceStatus("2026-08-29T09:00:00.000Z", now), "offline");
+});
+
+test("never having been seen is offline, not online", () => {
+  assert.equal(presenceStatus(null, "2026-08-29T10:00:00.000Z"), "offline");
+  assert.equal(presenceStatus(undefined, "2026-08-29T10:00:00.000Z"), "offline");
+});
+
+test("a nonsense timestamp is offline rather than throwing", () => {
+  assert.equal(presenceStatus("not-a-date", "2026-08-29T10:00:00.000Z"), "offline");
+});
+
+test("a clock skew putting someone in the future still reads as online", () => {
+  const now = "2026-08-29T10:00:00.000Z";
+  assert.equal(presenceStatus("2026-08-29T10:00:30.000Z", now), "online");
 });

@@ -46,6 +46,22 @@ export async function GET() {
   const sql = getSql();
   const ids = conversations.map((c) => c.id);
 
+  // Reading the sidebar is itself the heartbeat: if you are looking at the
+  // app you are present, so there is no separate ping to keep alive.
+  const seenAt = nowIso();
+  await sql`
+    insert into chat_presence (user_id, org_id, last_seen_at)
+    values (${userId}, ${orgId}, ${seenAt})
+    on conflict (user_id, org_id) do update set last_seen_at = excluded.last_seen_at
+  `;
+
+  const presenceRows = await sql`
+    select user_id, last_seen_at from chat_presence where org_id = ${orgId}
+  `;
+  const lastSeenBy = Object.fromEntries(
+    presenceRows.map((r) => [r.user_id, r.last_seen_at])
+  );
+
   const reads = await sql`
     select conversation_id, last_read_at from chat_reads
     where user_id = ${userId} and org_id = ${orgId}
@@ -76,7 +92,10 @@ export async function GET() {
 
   return Response.json({
     userId,
-    members,
+    // `now` is the server's clock, so a client with a wrong clock cannot
+    // decide everyone is offline.
+    now: seenAt,
+    members: members.map((m) => ({ ...m, lastSeenAt: lastSeenBy[m.id] || null })),
     conversations: conversations.map((c) => ({
       ...c,
       unread: statsBy[c.id]?.unread ?? 0,

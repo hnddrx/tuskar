@@ -61,19 +61,27 @@ export async function POST(request) {
   const { userId, orgId } = await auth();
   if (!orgId) return Response.json({ error: "No active team" }, { status: 400 });
 
-  const { conversationId, body } = await request.json();
+  const { conversationId, body, attachment } = await request.json();
 
   if (!(await authorize(conversationId, userId, orgId))) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
   const text = String(body || "").trim().slice(0, MAX_BODY);
-  if (!text) return Response.json({ error: "Message is empty" }, { status: 400 });
+  // A message may be just a file, but it cannot be nothing at all.
+  if (!text && !attachment) {
+    return Response.json({ error: "Message is empty" }, { status: 400 });
+  }
 
   const sql = getSql();
   const [row] = await sql`
-    insert into chat_messages (id, org_id, conversation_id, author_user_id, body, created_at)
-    values (${newId("msg")}, ${orgId}, ${conversationId}, ${userId}, ${text}, ${nowIso()})
+    insert into chat_messages (
+      id, org_id, conversation_id, author_user_id, body, attachment, created_at
+    )
+    values (
+      ${newId("msg")}, ${orgId}, ${conversationId}, ${userId}, ${text},
+      ${attachment ? JSON.stringify(attachment) : null}::jsonb, ${nowIso()}
+    )
     returning *
   `;
 

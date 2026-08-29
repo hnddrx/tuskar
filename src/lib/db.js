@@ -110,6 +110,7 @@ export function rowToChatMessage(row, membersById = {}) {
     authorUserId: row.author_user_id,
     author: membersById[row.author_user_id] || "Unknown",
     body: row.body,
+    attachment: row.attachment || null,
     createdAt: row.created_at,
   };
 }

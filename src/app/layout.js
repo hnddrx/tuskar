@@ -1,6 +1,7 @@
 import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { TaskProvider } from "@/context/TaskContext";
+import { ChatProvider } from "@/context/ChatContext";
 import AppShell from "@/components/AppShell";
 import { ConfirmProvider } from "@/components/ConfirmProvider";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
@@ -29,7 +30,9 @@ export default function RootLayout({ children }) {
         <ClerkProvider>
           <ConfirmProvider>
             <TaskProvider>
-              <AppShell>{children}</AppShell>
+              <ChatProvider>
+                <AppShell>{children}</AppShell>
+              </ChatProvider>
             </TaskProvider>
           </ConfirmProvider>
         </ClerkProvider>

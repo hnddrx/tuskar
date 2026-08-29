@@ -87,3 +87,22 @@ export function groupMessages(messages) {
     return { ...message, startsDay, showHeader: startsDay || !sameAuthor || !withinWindow };
   });
 }
+
+// Presence is derived from a heartbeat — each client stamps a last-seen time
+// while its tab is visible — rather than from a held-open socket. That makes
+// it approximate by nature, so the thresholds are deliberately generous: a
+// missed beat should not flicker someone offline mid-conversation.
+const ONLINE_WINDOW_MS = 90 * 1000;
+const AWAY_WINDOW_MS = 5 * 60 * 1000;
+
+export function presenceStatus(lastSeenAt, now) {
+  const seen = Date.parse(lastSeenAt);
+  const at = Date.parse(now);
+  if (!Number.isFinite(seen) || !Number.isFinite(at)) return "offline";
+
+  // A device whose clock runs fast should read as present, not as an error.
+  const elapsed = Math.max(0, at - seen);
+  if (elapsed <= ONLINE_WINDOW_MS) return "online";
+  if (elapsed <= AWAY_WINDOW_MS) return "away";
+  return "offline";
+}
