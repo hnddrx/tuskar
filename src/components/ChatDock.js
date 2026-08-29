@@ -6,6 +6,7 @@ import { useConversation } from "@/lib/useConversation";
 import { useTasks } from "@/context/TaskContext";
 import ChatMessages, { initials, PresenceDot } from "@/components/ChatMessages";
 import ChatComposer from "@/components/ChatComposer";
+import MessagingMenu from "@/components/MessagingMenu";
 
 /**
  * Odoo-style docked conversations: small windows pinned to the bottom-right,
@@ -16,7 +17,9 @@ import ChatComposer from "@/components/ChatComposer";
  */
 export default function ChatDock() {
   const { enabled, docked } = useChat();
-  if (!enabled || docked.length === 0) return null;
+  // The launcher is always present once signed in, with or without open
+  // windows — it is how chat is reached from any page.
+  if (!enabled) return null;
 
   // A phone has room for one conversation at a time, so only the most recently
   // expanded one is shown there; the rest stay as collapsed title bars. On a
@@ -24,7 +27,10 @@ export default function ChatDock() {
   const lastExpandedId = [...docked].reverse().find((w) => !w.minimized)?.id ?? null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-wrap items-end justify-end gap-2 p-2 sm:inset-x-auto sm:right-0 sm:flex-nowrap sm:gap-3 sm:p-3">
+    // Extra bottom space on phones clears the page's own create button, which
+    // is fixed to the same corner (bottom-5 right-5, mobile only). Applied to
+    // the whole row so an open conversation cannot cover it either.
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-wrap items-end justify-end gap-2 p-2 pb-24 sm:inset-x-auto sm:right-0 sm:flex-nowrap sm:gap-3 sm:p-3">
       {docked.map((w) => (
         <DockedWindow
           key={w.id}
@@ -35,6 +41,7 @@ export default function ChatDock() {
           hiddenOnMobile={!w.minimized && w.id !== lastExpandedId}
         />
       ))}
+      <MessagingMenu />
     </div>
   );
 }
