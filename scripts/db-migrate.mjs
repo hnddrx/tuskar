@@ -167,6 +167,10 @@ async function migrate() {
       sync_source text not null default 'Manual'
     )
   `;
+  // Who a comment @-mentions. Stored as resolved Clerk user ids rather than
+  // re-parsed from the text later, so a member renaming themselves cannot
+  // change who an old comment was addressed to.
+  await sql`alter table team_comments add column if not exists mentions jsonb not null default '[]'`;
   await sql`create index if not exists team_comments_org_id_idx on team_comments (org_id)`;
   await sql`create index if not exists team_comments_ticket_id_idx on team_comments (ticket_id)`;
 
@@ -268,7 +272,7 @@ async function migrate() {
   `;
 
   console.log(
-    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries, smtp_config ready."
+    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries, smtp_config ready (team_comments.mentions added)."
   );
 }
 

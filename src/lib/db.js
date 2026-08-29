@@ -157,6 +157,9 @@ export function rowToTeamComment(row, membersById = {}) {
     author: membersById[row.author_user_id] || "Unknown",
     authorUserId: row.author_user_id,
     text: row.text,
+    // Resolved Clerk user ids, stored rather than re-parsed from the text, so
+    // a member renaming themselves cannot change who an old comment addressed.
+    mentions: Array.isArray(row.mentions) ? row.mentions : [],
     jiraIssueLink: row.jira_issue_link,
     syncSource: row.sync_source,
   };

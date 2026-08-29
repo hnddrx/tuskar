@@ -199,6 +199,7 @@ function TeamTaskDetailPageInner() {
                 addComment={addComment}
                 deleteComment={deleteComment}
                 showAuthorField={false}
+                members={members}
               />
             </section>
 
