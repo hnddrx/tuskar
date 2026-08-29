@@ -18,6 +18,7 @@ import {
   CalendarDays,
   Timer,
   Square,
+  Mail,
 } from "lucide-react";
 import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
@@ -62,6 +63,7 @@ const NAV_SECTIONS = [
     items: [
       { href: "/docs", label: "Auto Docs", icon: FileText },
       { href: "/jira", label: "Jira Import", icon: Link2 },
+      { href: "/email", label: "Email Settings", icon: Mail },
       { href: "/config", label: "Configuration", icon: Settings2 },
       { href: "/guide", label: "User Guide", icon: BookOpenText },
     ],

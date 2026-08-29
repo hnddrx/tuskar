@@ -220,6 +220,24 @@ async function migrate() {
   `;
   await sql`create index if not exists team_calendar_events_org_id_idx on team_calendar_events (org_id)`;
 
+  // Outgoing mail server, configured from the UI exactly like Jira: one row
+  // per user, with the password encrypted at rest (serverCrypto.js) and never
+  // returned to the browser.
+  await sql`
+    create table if not exists smtp_config (
+      user_id text primary key,
+      label text not null default '',
+      host text not null default '',
+      port integer not null default 587,
+      security text not null default 'starttls',
+      username text not null default '',
+      password_enc text,
+      from_name text not null default '',
+      from_email text not null default '',
+      updated_at text
+    )
+  `;
+
   // Time tracking. Unlike tasks, a time entry is always owned by the person
   // who recorded it, so personal and team work share one table and are told
   // apart by `scope` rather than living in separate tables.
@@ -250,7 +268,7 @@ async function migrate() {
   `;
 
   console.log(
-    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries ready."
+    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries, smtp_config ready."
   );
 }
 

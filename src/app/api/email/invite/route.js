@@ -3,37 +3,46 @@ import { Resend } from "resend";
 import { getSql, rowToCalendarEvent } from "@/lib/db";
 import { buildEventInvite } from "@/lib/ics";
 import { buildInviteEmail } from "@/lib/inviteEmail";
+import { getSmtpConfig } from "@/lib/smtpCredentials";
+import { sendViaSmtp } from "@/lib/smtpTransport";
+import { formatSender } from "@/lib/smtp";
 
-// Sending is configured entirely by environment. Until Resend is provisioned
-// and a verified sending domain is set, the route reports that plainly rather
-// than failing in a way the UI has to guess at — the calendar page falls back
-// to the .ics download it has always offered.
-function senderConfig() {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  if (!apiKey) return { error: "Email sending isn't set up yet (no Resend API key)." };
-  if (!from) {
-    return {
-      error:
-        "Email sending isn't set up yet — no verified sender address is configured.",
-    };
-  }
-  return { apiKey, from };
+// nodemailer wants the encoding named; Resend takes a bare base64 string and
+// rejects fields it does not know.
+function forNodemailer(attachments) {
+  return attachments.map((a) => ({
+    filename: a.filename,
+    content: a.content,
+    encoding: "base64",
+    contentType: a.contentType,
+  }));
 }
 
 export async function POST(request) {
   const { userId, orgId } = await auth();
   const { scope = "personal", eventId } = await request.json();
 
-  const config = senderConfig();
-  if (config.error) {
-    return Response.json({ error: config.error }, { status: 503 });
+  // The mail server configured in Settings wins; the Resend env vars remain a
+  // fallback for a deployment that would rather configure sending at deploy
+  // time than in the UI.
+  const smtp = await getSmtpConfig(userId);
+  const resendKey = process.env.RESEND_API_KEY;
+  const resendFrom = process.env.EMAIL_FROM;
+
+  if (!smtp.configured && !(resendKey && resendFrom)) {
+    return Response.json(
+      {
+        error:
+          "Email sending isn't set up yet. Add an outgoing mail server under Email Settings.",
+      },
+      { status: 503 }
+    );
   }
 
   const sql = getSql();
 
   // Read the event server-side rather than trusting the request body: the
-  // guest list decides who this email reaches.
+  // stored guest list decides who this email reaches.
   let row;
   if (scope === "team") {
     if (!orgId) {
@@ -64,13 +73,16 @@ export async function POST(request) {
     organizer: organizerEmail ? { name: organizerName, email: organizerEmail } : null,
   });
   if (!ics) {
-    return Response.json({ error: "This event can't be turned into an invite." }, { status: 400 });
+    return Response.json(
+      { error: "This event can't be turned into an invite." },
+      { status: 400 }
+    );
   }
 
   const message = buildInviteEmail({
     event,
     ics,
-    from: config.from,
+    from: smtp.configured ? formatSender(smtp) : resendFrom,
     organizerName,
     url: new URL(`/calendar?event=${event.id}`, request.url).toString(),
   });
@@ -82,12 +94,22 @@ export async function POST(request) {
   }
 
   // Replies go to the person who organised the meeting, not the sending
-  // domain's noreply mailbox.
+  // mailbox.
   if (organizerEmail) message.replyTo = organizerEmail;
 
-  const resend = new Resend(config.apiKey);
-  const { data, error } = await resend.emails.send(message);
+  if (smtp.configured) {
+    const result = await sendViaSmtp(smtp, {
+      ...message,
+      attachments: forNodemailer(message.attachments),
+    });
+    if (!result.ok) {
+      return Response.json({ error: result.error }, { status: 502 });
+    }
+    return Response.json({ id: result.id, sent: message.to.length, via: "smtp" });
+  }
 
+  const resend = new Resend(resendKey);
+  const { data, error } = await resend.emails.send(message);
   if (error) {
     console.warn("Resend rejected the invite", error);
     return Response.json(
@@ -96,5 +118,5 @@ export async function POST(request) {
     );
   }
 
-  return Response.json({ id: data?.id, sent: message.to.length });
+  return Response.json({ id: data?.id, sent: message.to.length, via: "resend" });
 }
