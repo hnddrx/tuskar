@@ -15,11 +15,21 @@ import {
   phaseLabel,
   remainingSeconds,
   formatCountdown,
+  resumeStartedAt,
 } from "@/lib/pomodoro";
 
 const POMODORO_KEY = "taskar:pomodoro:v1";
 
-const IDLE_POMODORO = { phase: "work", startedAt: null, completedWork: 0, taskId: "" };
+// `remaining` is only set while paused: it holds the seconds left so that
+// resuming can pick up where it stopped. Null means the phase is either
+// running (measured from startedAt) or untouched (its full length).
+const IDLE_POMODORO = {
+  phase: "work",
+  startedAt: null,
+  remaining: null,
+  completedWork: 0,
+  taskId: "",
+};
 
 export default function TimePage() {
   const {
@@ -305,8 +315,10 @@ function PomodoroCard({ now, tasks, taskById, onLogInterval }) {
     if (hydrated) localStorage.setItem(POMODORO_KEY, JSON.stringify(state));
   }, [state, hydrated]);
 
-  const left = remainingSeconds(state.phase, state.startedAt, now, DEFAULT_POMODORO);
   const isRunning = Boolean(state.startedAt);
+  const left = isRunning
+    ? remainingSeconds(state.phase, state.startedAt, now, DEFAULT_POMODORO)
+    : (state.remaining ?? phaseSeconds(state.phase, DEFAULT_POMODORO));
 
   const advance = useCallback(() => {
     setState((s) => {
@@ -318,6 +330,7 @@ function PomodoroCard({ now, tasks, taskById, onLogInterval }) {
         // The next phase waits for a deliberate start rather than running on
         // its own — a break you didn't notice starting is a break you don't take.
         startedAt: null,
+        remaining: null,
       };
     });
   }, []);
@@ -371,17 +384,31 @@ function PomodoroCard({ now, tasks, taskById, onLogInterval }) {
       <div className="mt-3 flex justify-center gap-2">
         {isRunning ? (
           <button
-            onClick={() => setState((s) => ({ ...s, startedAt: null }))}
+            onClick={() => setState((s) => ({ ...s, startedAt: null, remaining: left }))}
             className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
           >
             <Pause size={13} /> Pause
           </button>
         ) : (
           <button
-            onClick={() => setState((s) => ({ ...s, startedAt: new Date().toISOString() }))}
+            onClick={() =>
+              setState((s) => ({
+                ...s,
+                startedAt: resumeStartedAt(
+                  s.phase,
+                  s.remaining ?? phaseSeconds(s.phase, DEFAULT_POMODORO),
+                  new Date().toISOString(),
+                  DEFAULT_POMODORO
+                ),
+                remaining: null,
+              }))
+            }
             className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
           >
-            <Play size={13} /> Start {phaseLabel(state.phase).toLowerCase()}
+            <Play size={13} />{" "}
+            {state.remaining === null
+              ? `Start ${phaseLabel(state.phase).toLowerCase()}`
+              : "Resume"}
           </button>
         )}
         <button

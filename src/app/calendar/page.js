@@ -233,22 +233,9 @@ export default function CalendarPage() {
   // invites still go through the mail client — a task has no attendee
   // snapshot of its own, so its guest list is derived from team membership
   // at send time rather than stored.
-  async function emailInvite(entry) {
-    if (entry.kind !== "event") {
-      mailtoInvite(entry);
-      return;
-    }
-
-    const attendees = attendeesFor(entry);
-    const ok = await confirm({
-      title: `Send this invite to ${attendees.length} ${
-        attendees.length === 1 ? "person" : "people"
-      }?`,
-      message: attendees.map((a) => a.email).filter(Boolean).join(", "),
-      confirmLabel: "Send",
-    });
-    if (!ok) return;
-
+  // One send path, used both by the Send invite button and automatically on
+  // creation. `entry` must be an event; tasks have no stored guest list.
+  async function sendEventInvite(entry) {
     setSendState({ status: "sending", key: entryKey(entry) });
     try {
       const res = await fetch("/api/email/invite", {
@@ -275,6 +262,25 @@ export default function CalendarPage() {
     }
   }
 
+  // The Send invite button: tasks fall back to the mail client, and an
+  // explicit re-send is confirmed first since the attendees may already have
+  // been emailed when the invite was created.
+  async function emailInvite(entry) {
+    if (entry.kind !== "event") {
+      mailtoInvite(entry);
+      return;
+    }
+    const attendees = attendeesFor(entry);
+    const ok = await confirm({
+      title: `Send this invite to ${attendees.length} ${
+        attendees.length === 1 ? "person" : "people"
+      }?`,
+      message: attendees.map((a) => a.email).filter(Boolean).join(", "),
+      confirmLabel: "Send",
+    });
+    if (ok) await sendEventInvite(entry);
+  }
+
   async function removeEvent(entry) {
     const ok = await confirm({
       title: `Delete "${entry.event.title}"?`,
@@ -296,7 +302,17 @@ export default function CalendarPage() {
     setSelected(event.eventDate);
     if (createdScope === "team") setScope((s) => (s === "personal" ? "all" : s));
     else setScope((s) => (s === "team" ? "all" : s));
-    downloadInvite({ kind: "event", scope: createdScope, date: event.eventDate, event });
+    const entry = { kind: "event", scope: createdScope, date: event.eventDate, event };
+
+    // Creating an invite with guests sends it to them. With no email server
+    // configured the send falls back to the .ics download, which is also all
+    // an invite with no addressable guests can do.
+    const hasRecipients = (event.attendees || []).some((a) => a?.email);
+    if (hasRecipients) {
+      sendEventInvite(entry);
+    } else {
+      downloadInvite(entry);
+    }
   }
 
   return (

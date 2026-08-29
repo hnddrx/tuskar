@@ -65,3 +65,19 @@ export function formatCountdown(seconds) {
   const rest = total % 60;
   return `${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
 }
+
+/**
+ * The `startedAt` that resumes a phase with `remaining` seconds left on it.
+ *
+ * Pausing cannot simply clear `startedAt` — a phase with no start reads as
+ * "not begun", which is indistinguishable from a full reset. Instead the
+ * remaining time is kept, and resuming back-dates the start by however much
+ * of the phase had already run.
+ */
+export function resumeStartedAt(phase, remaining, now, config = DEFAULT_POMODORO) {
+  const total = phaseSeconds(phase, config);
+  const left = Math.min(total, Math.max(0, Number(remaining) || 0));
+  const elapsed = total - left;
+  const startedMs = Date.parse(now) - elapsed * 1000;
+  return new Date(startedMs).toISOString();
+}

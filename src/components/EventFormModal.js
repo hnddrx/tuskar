@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Plus, Trash2 } from "lucide-react";
+import { X, Plus, Trash2, Send } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
 import ScopeBadge from "@/components/ScopeBadge";
 
@@ -25,6 +25,12 @@ export default function EventFormModal({ open, onClose, defaultDate, onCreated }
   const [guests, setGuests] = useState([]);
   const [guestDraft, setGuestDraft] = useState("");
   const [error, setError] = useState(null);
+
+  // Who would actually receive an email if this were created now.
+  const recipientCount = [
+    ...team.members.filter((m) => memberIds.includes(m.id)),
+    ...guests,
+  ].filter((a) => a.email).length;
 
   useEffect(() => {
     if (open) {
@@ -300,6 +306,21 @@ export default function EventFormModal({ open, onClose, defaultDate, onCreated }
             </p>
           )}
 
+          {/* Creating now emails the guest list, so the button has to say so
+              rather than surprising the user after the fact. */}
+          {recipientCount > 0 && (
+            <p className="flex items-start gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
+              <Send size={13} className="mt-0.5 shrink-0" />
+              <span>
+                Creating this will email the invitation to{" "}
+                <strong className="font-medium">
+                  {recipientCount} {recipientCount === 1 ? "person" : "people"}
+                </strong>
+                , with the calendar file attached.
+              </span>
+            </p>
+          )}
+
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
             <button
               type="button"
@@ -312,7 +333,7 @@ export default function EventFormModal({ open, onClose, defaultDate, onCreated }
               type="submit"
               className="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
             >
-              Create invite
+              {recipientCount > 0 ? "Create & send invite" : "Create invite"}
             </button>
           </div>
         </form>

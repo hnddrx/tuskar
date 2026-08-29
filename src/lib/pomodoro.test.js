@@ -8,6 +8,7 @@ import {
   phaseLabel,
   remainingSeconds,
   formatCountdown,
+  resumeStartedAt,
 } from "./pomodoro.js";
 
 // --- phase progression -----------------------------------------------------
@@ -95,4 +96,37 @@ test("the countdown face never shows a negative time", () => {
 
 test("the countdown face keeps counting past an hour in minutes", () => {
   assert.equal(formatCountdown(90 * 60), "90:00");
+});
+
+// --- pause / resume --------------------------------------------------------
+
+test("resuming keeps the time that was left when paused", () => {
+  // 10 minutes left on a 25 minute phase means 15 minutes have already run,
+  // so the resumed phase must look like it started 15 minutes ago.
+  const now = "2026-08-29T10:00:00.000Z";
+  const startedAt = resumeStartedAt("work", 10 * 60, now, DEFAULT_POMODORO);
+  assert.equal(startedAt, "2026-08-29T09:45:00.000Z");
+  assert.equal(remainingSeconds("work", startedAt, now, DEFAULT_POMODORO), 10 * 60);
+});
+
+test("resuming an untouched phase starts it from now", () => {
+  const now = "2026-08-29T10:00:00.000Z";
+  assert.equal(resumeStartedAt("work", 25 * 60, now, DEFAULT_POMODORO), now);
+});
+
+test("a remaining time longer than the phase cannot rewind the start", () => {
+  const now = "2026-08-29T10:00:00.000Z";
+  assert.equal(resumeStartedAt("work", 99 * 60, now, DEFAULT_POMODORO), now);
+});
+
+test("resuming with no time left leaves the phase finished", () => {
+  const now = "2026-08-29T10:00:00.000Z";
+  const startedAt = resumeStartedAt("work", 0, now, DEFAULT_POMODORO);
+  assert.equal(remainingSeconds("work", startedAt, now, DEFAULT_POMODORO), 0);
+});
+
+test("pause and resume survive a break phase too", () => {
+  const now = "2026-08-29T10:00:00.000Z";
+  const startedAt = resumeStartedAt("shortBreak", 2 * 60, now, DEFAULT_POMODORO);
+  assert.equal(remainingSeconds("shortBreak", startedAt, now, DEFAULT_POMODORO), 2 * 60);
 });
