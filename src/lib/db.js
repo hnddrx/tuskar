@@ -23,6 +23,7 @@ export function rowToTask(row) {
     startDate: row.start_date,
     targetDate: row.target_date,
     progress: row.progress,
+    progressAuto: row.progress_auto !== false,
     lastUpdate: row.last_update,
     description: row.description,
     githubBranch: row.github_branch,
@@ -40,6 +41,7 @@ export function rowToNote(row) {
     type: row.type,
     title: row.title,
     body: row.body,
+    bodyRich: row.body_rich || null,
     linkedTaskId: row.linked_task_id,
     attendees: row.attendees,
     agenda: row.agenda,
@@ -82,6 +84,25 @@ export function rowToCalendarEvent(row) {
   };
 }
 
+// Time entries are always owned by the person who recorded them, so unlike
+// tasks there is no personal/team split here — `scope` says which board the
+// tracked task belongs to.
+export function rowToTimeEntry(row) {
+  return {
+    id: row.id,
+    scope: row.scope,
+    orgId: row.org_id ?? null,
+    taskId: row.task_id ?? null,
+    description: row.description,
+    startedAt: row.started_at,
+    endedAt: row.ended_at ?? null,
+    durationSeconds: row.duration_seconds ?? null,
+    source: row.source,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 export async function getTeamMembersById(orgId) {
   const clerk = await clerkClient();
   const { data } = await clerk.organizations.getOrganizationMembershipList({
@@ -113,6 +134,7 @@ export function rowToTeamTask(row, membersById = {}) {
     startDate: row.start_date,
     targetDate: row.target_date,
     progress: row.progress,
+    progressAuto: row.progress_auto !== false,
     lastUpdate: row.last_update,
     description: row.description,
     githubBranch: row.github_branch,

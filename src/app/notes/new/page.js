@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTasks } from "@/context/TaskContext";
 import { newId, nowIso } from "@/lib/id";
@@ -9,22 +9,29 @@ import NoteEditor from "@/components/NoteEditor";
 function NewNoteInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { personal: { tasks } } = useTasks();
+  const { personal: { tasks, refreshNotes } } = useTasks();
   const [saveError, setSaveError] = useState(null);
   const type = searchParams.get("type") === "mom" ? "mom" : "freeform";
 
-  const draft = {
-    id: newId("note"),
-    type,
-    title: "",
-    body: "",
-    linkedTaskId: null,
-    attendees: [],
-    agenda: [],
-    actionItems: [],
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-  };
+  // Held stable across renders. Rebuilding this inline minted a fresh id on
+  // every keystroke, which remounts the body editor (it is keyed on the note
+  // id) and throws away whatever had been typed into it.
+  const draft = useMemo(
+    () => ({
+      id: newId("note"),
+      type,
+      title: "",
+      body: "",
+      bodyRich: null,
+      linkedTaskId: null,
+      attendees: [],
+      agenda: [],
+      actionItems: [],
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    }),
+    [type]
+  );
 
   async function handleSave(record) {
     try {
@@ -34,6 +41,7 @@ function NewNoteInner() {
         body: JSON.stringify(record),
       });
       if (!res.ok) throw new Error(`Failed to save (${res.status})`);
+      refreshNotes();
       router.push(`/notes/${record.id}`);
     } catch (err) {
       setSaveError(err.message || "Failed to save");
@@ -47,7 +55,9 @@ function NewNoteInner() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(record),
-    }).catch(() => {});
+    })
+      .then(() => refreshNotes())
+      .catch(() => {});
   }
 
   return (

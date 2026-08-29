@@ -13,11 +13,13 @@ import { useAuth, useUser, useOrganization } from "@clerk/nextjs";
 import seed from "@/data/seed.json";
 import { newId, nowIso, todayIso } from "@/lib/id";
 import { STORAGE_KEY } from "@/lib/constants";
+import { withComputedProgress, DEFAULT_STATUS_PROGRESS } from "@/lib/progress";
 import { useConfirm } from "@/components/ConfirmProvider";
 
 const TaskContext = createContext(null);
 const IMPORT_OFFERED_KEY = "taskar:import-offered:v1";
 const EMPTY_TEAM_CONFIG = { statuses: [], priorities: [], types: [], assignees: [] };
+const SEED_CONFIG = { ...seed.config, statusProgress: DEFAULT_STATUS_PROGRESS };
 
 async function fetchJson(url) {
   const res = await fetch(url);
@@ -77,10 +79,14 @@ export function TaskProvider({ children }) {
   const [personal, setPersonal] = useState({
     tasks: seed.tasks,
     comments: seed.comments,
-    config: seed.config,
+    notes: [],
+    config: SEED_CONFIG,
   });
   const [personalHydrated, setPersonalHydrated] = useState(false);
   const [personalEvents, setPersonalEvents] = useState([]);
+  // Time entries belong to the signed-in person and span both boards, so they
+  // sit outside the personal/team split rather than inside either one.
+  const [timeEntries, setTimeEntries] = useState([]);
   const lastUserIdRef = useRef(undefined);
 
   const [team, setTeam] = useState({ tasks: [], comments: [], config: EMPTY_TEAM_CONFIG });
@@ -137,8 +143,9 @@ export function TaskProvider({ children }) {
     const userChanged = lastUserIdRef.current !== undefined && lastUserIdRef.current !== userId;
     if (userChanged) {
       setPersonalHydrated(false);
-      setPersonal({ tasks: [], comments: [], config: seed.config });
+      setPersonal({ tasks: [], comments: [], notes: [], config: SEED_CONFIG });
       setPersonalEvents([]);
+      setTimeEntries([]);
     }
     lastUserIdRef.current = userId;
 
@@ -175,10 +182,20 @@ export function TaskProvider({ children }) {
           console.warn("Failed to load personal calendar events", err);
           return [];
         });
+        const entries = await fetchJson("/api/time/entries").catch((err) => {
+          console.warn("Failed to load time entries", err);
+          return [];
+        });
 
         if (cancelled) return;
-        setPersonal({ tasks: server.tasks, comments: server.comments, config: server.config });
+        setPersonal({
+          tasks: server.tasks,
+          comments: server.comments,
+          notes: server.notes || [],
+          config: server.config,
+        });
         setPersonalEvents(events);
+        setTimeEntries(entries);
       } catch (err) {
         console.warn("Failed to load personal taskar state from server", err);
       } finally {
@@ -267,6 +284,7 @@ export function TaskProvider({ children }) {
       startDate: task.startDate || null,
       targetDate: task.targetDate || null,
       progress: Number(task.progress) || 0,
+      progressAuto: task.progressAuto !== false,
       lastUpdate: todayIso(),
       description: task.description || "",
       githubBranch: task.githubBranch || "N/A",
@@ -427,6 +445,9 @@ export function TaskProvider({ children }) {
           startDate: issue.startDate || null,
           targetDate: issue.targetDate || null,
           progress: 0,
+          // Jira owns this issue's progress; the status/subtask rule must not
+          // overwrite what the sync brought in.
+          progressAuto: false,
           lastUpdate: todayIso(),
           description: issue.description || "",
           githubBranch: "N/A",
@@ -473,7 +494,14 @@ export function TaskProvider({ children }) {
   }, [personal.tasks, syncCall]);
 
   const resetToSeed = useCallback(() => {
-    setPersonal({ tasks: seed.tasks, comments: seed.comments, config: seed.config });
+    // Reset clears tasks, comments, and config only — notes are untouched
+    // server-side, so they must survive here too.
+    setPersonal((s) => ({
+      ...s,
+      tasks: seed.tasks,
+      comments: seed.comments,
+      config: SEED_CONFIG,
+    }));
     syncCall(() =>
       fetch("/api/state/reset", { method: "POST" }).then((res) => {
         if (!res.ok) throw new Error("Failed to reset data");
@@ -563,6 +591,7 @@ export function TaskProvider({ children }) {
       startDate: task.startDate || null,
       targetDate: task.targetDate || null,
       progress: Number(task.progress) || 0,
+      progressAuto: task.progressAuto !== false,
       lastUpdate: todayIso(),
       description: task.description || "",
       githubBranch: task.githubBranch || "N/A",
@@ -688,11 +717,130 @@ export function TaskProvider({ children }) {
     );
   }, [syncCall]);
 
+  // Notes load with the rest of the personal state so task pages can show
+  // what's linked to a task. The notes screens still mutate through their own
+  // routes, so they call this afterwards to keep both views in step.
+  const refreshNotes = useCallback(async () => {
+    try {
+      const notes = await fetchJson("/api/notes");
+      setPersonal((s) => ({ ...s, notes }));
+    } catch (err) {
+      console.warn("Failed to refresh notes", err);
+    }
+  }, []);
+
+  // Progress is derived rather than read straight from the column — see
+  // lib/progress.js. Deriving it once here means the table, board, detail
+  // pages, sorting, and Auto Docs all agree without each redoing the work.
+  const personalTasks = useMemo(
+    () => withComputedProgress(personal.tasks, personal.config?.statusProgress),
+    [personal.tasks, personal.config]
+  );
+  const teamTasks = useMemo(
+    () => withComputedProgress(team.tasks, team.config?.statusProgress),
+    [team.tasks, team.config]
+  );
+
+  // ---------------------------------------------------------------------
+  // Time tracking
+  // ---------------------------------------------------------------------
+
+  const refreshTime = useCallback(async () => {
+    try {
+      setTimeEntries(await fetchJson("/api/time/entries"));
+    } catch (err) {
+      console.warn("Failed to refresh time entries", err);
+    }
+  }, []);
+
+  // Every mutator re-reads the list afterwards rather than patching state
+  // locally: ids and durations are stamped by the server (so a wrong clock on
+  // this device cannot inflate tracked time), and starting a timer implicitly
+  // stops whichever one was already running.
+  const timeRequest = useCallback(
+    async (url, options, failure) => {
+      const res = await fetch(url, options);
+      if (!res.ok) throw new Error(failure);
+      await refreshTime();
+    },
+    [refreshTime]
+  );
+
+  const startTimer = useCallback(
+    ({ taskId = null, scope = "personal", orgId = null, description = "" } = {}) =>
+      timeRequest(
+        "/api/time/entries",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ taskId, scope, orgId, description }),
+        },
+        "Failed to start the timer"
+      ),
+    [timeRequest]
+  );
+
+  const stopTimer = useCallback(
+    (id) =>
+      timeRequest(
+        `/api/time/entries/${id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stop: true }),
+        },
+        "Failed to stop the timer"
+      ),
+    [timeRequest]
+  );
+
+  // A finished stretch of work: manual entry, or a completed Pomodoro.
+  const logTime = useCallback(
+    (entry) =>
+      timeRequest(
+        "/api/time/entries",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(entry),
+        },
+        "Failed to log the time"
+      ),
+    [timeRequest]
+  );
+
+  const updateTimeEntry = useCallback(
+    (id, patch) =>
+      timeRequest(
+        `/api/time/entries/${id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(patch),
+        },
+        "Failed to update the entry"
+      ),
+    [timeRequest]
+  );
+
+  const deleteTimeEntry = useCallback(
+    (id) =>
+      timeRequest(`/api/time/entries/${id}`, { method: "DELETE" }, "Failed to delete the entry"),
+    [timeRequest]
+  );
+
+  const runningEntry = useMemo(
+    () => timeEntries.find((e) => !e.endedAt) || null,
+    [timeEntries]
+  );
+
   const value = useMemo(
     () => ({
       personal: {
-        tasks: personal.tasks,
+        tasks: personalTasks,
         comments: personal.comments,
+        notes: personal.notes,
+        refreshNotes,
         config: personal.config,
         events: personalEvents,
         hydrated: personalHydrated,
@@ -708,7 +856,7 @@ export function TaskProvider({ children }) {
         resetToSeed,
       },
       team: {
-        tasks: team.tasks,
+        tasks: teamTasks,
         comments: team.comments,
         config: team.config,
         events: teamEvents,
@@ -725,6 +873,16 @@ export function TaskProvider({ children }) {
         deleteComment: deleteTeamComment,
         updateConfig: updateTeamConfig,
       },
+      time: {
+        entries: timeEntries,
+        running: runningEntry,
+        start: startTimer,
+        stop: stopTimer,
+        log: logTime,
+        update: updateTimeEntry,
+        remove: deleteTimeEntry,
+        refresh: refreshTime,
+      },
       hydrated: personalHydrated && teamHydrated,
       syncError,
       retrySync,
@@ -732,6 +890,8 @@ export function TaskProvider({ children }) {
     }),
     [
       personal,
+      personalTasks,
+      refreshNotes,
       personalHydrated,
       personalEvents,
       addPersonalEvent,
@@ -748,6 +908,7 @@ export function TaskProvider({ children }) {
       mergeJiraIssues,
       resetToSeed,
       team,
+      teamTasks,
       members,
       orgId,
       orgName,
@@ -761,6 +922,14 @@ export function TaskProvider({ children }) {
       syncError,
       retrySync,
       dismissSyncError,
+      timeEntries,
+      runningEntry,
+      startTimer,
+      stopTimer,
+      logTime,
+      updateTimeEntry,
+      deleteTimeEntry,
+      refreshTime,
     ]
   );
 

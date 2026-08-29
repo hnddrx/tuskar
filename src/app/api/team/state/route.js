@@ -1,12 +1,21 @@
 import { auth } from "@clerk/nextjs/server";
 import { getSql, rowToTeamTask, rowToTeamComment, getTeamMembersById } from "@/lib/db";
+import { DEFAULT_STATUS_PROGRESS } from "@/lib/progress";
 import seed from "@/data/seed.json";
 
 const DEFAULT_TEAM_CONFIG = {
   statuses: seed.config.statuses,
   priorities: seed.config.priorities,
   types: seed.config.types,
+  statusProgress: DEFAULT_STATUS_PROGRESS,
 };
+
+// See the personal route: an empty map means "never configured", not "every
+// status is 0%".
+function statusProgressOf(configRow) {
+  const stored = configRow?.status_progress;
+  return stored && Object.keys(stored).length > 0 ? stored : DEFAULT_STATUS_PROGRESS;
+}
 
 export async function GET() {
   const { orgId } = await auth();
@@ -34,6 +43,7 @@ export async function GET() {
           statuses: configRow.statuses,
           priorities: configRow.priorities,
           types: configRow.types,
+          statusProgress: statusProgressOf(configRow),
         }
       : DEFAULT_TEAM_CONFIG,
     hasSynced: Boolean(configRow),

@@ -3,6 +3,23 @@
 // for tasks. Pure functions so they're reusable by both the note editor
 // (single-note export) and the /notes list page (compile-all export).
 
+import { toMarkdown, toHtml, escapeHtml } from "./richText.js";
+
+// A note's body is a rich document; notes written before the rich editor
+// only have plain text. Both export, so every reader goes through here.
+function bodyMarkdown(note) {
+  if (note.bodyRich) return toMarkdown(note.bodyRich).trim();
+  return (note.body || "").trim();
+}
+
+function bodyHtml(note) {
+  if (note.bodyRich) return toHtml(note.bodyRich);
+  return (note.body || "")
+    .split(/\r?\n/)
+    .map((line) => "<p>" + escapeHtml(line) + "</p>")
+    .join("");
+}
+
 function fmtDate(d) {
   if (!d) return "—";
   try {
@@ -54,7 +71,7 @@ export function generateNoteDoc(note, tasks) {
 
     lines.push("## Discussion");
     lines.push("");
-    lines.push(note.body?.trim() || "_No discussion notes._");
+    lines.push(bodyMarkdown(note) || "_No discussion notes._");
     lines.push("");
 
     lines.push("## Action Items");
@@ -75,7 +92,7 @@ export function generateNoteDoc(note, tasks) {
   } else {
     lines.push("## Note");
     lines.push("");
-    lines.push(note.body?.trim() || "_No content._");
+    lines.push(bodyMarkdown(note) || "_No content._");
   }
 
   lines.push("");
@@ -120,4 +137,76 @@ function slug(s) {
     .trim()
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-");
+}
+
+// ---------------------------------------------------------------------------
+// Word export
+// ---------------------------------------------------------------------------
+
+// A .doc that Word, Pages and Google Docs all open natively: HTML carrying the
+// Office namespaces. Unlike the Markdown export above this keeps colour, font
+// size, alignment and tables, none of which Markdown can express.
+function section(heading, html) {
+  return `<h2 style="font-size: 13pt; margin: 18pt 0 6pt">${heading}</h2>${html}`;
+}
+
+function listHtml(items) {
+  if (!items || items.length === 0) return "<p><em>None recorded.</em></p>";
+  return `<ul>${items.map((i) => `<li>${escapeHtml(i)}</li>`).join("")}</ul>`;
+}
+
+export function generateNoteWordHtml(note, tasks) {
+  const linkedTask = note.linkedTaskId
+    ? tasks.find((t) => t.id === note.linkedTaskId)
+    : null;
+  const title = escapeHtml(note.title || "Untitled note");
+
+  const meta = [
+    `Type: ${note.type === "mom" ? "Minutes of Meeting" : "Freeform"}`,
+    `Date: ${fmtDate(note.createdAt)}`,
+  ];
+  if (linkedTask) meta.push(`Linked task: ${linkedTask.ticketId} — ${linkedTask.name}`);
+
+  const parts = [
+    `<h1 style="font-size: 18pt; margin: 0 0 4pt">${title}</h1>`,
+    `<p style="color: #64748b; font-size: 9pt; margin: 0 0 18pt">${escapeHtml(
+      meta.join("  |  ")
+    )}</p>`,
+  ];
+
+  if (note.type === "mom") {
+    parts.push(section("Attendees", listHtml(note.attendees)));
+    parts.push(section("Agenda", listHtml(note.agenda)));
+    parts.push(
+      section("Discussion", bodyHtml(note) || "<p><em>No discussion notes.</em></p>")
+    );
+    const items = note.actionItems || [];
+    parts.push(
+      section(
+        "Action items",
+        items.length === 0
+          ? "<p><em>No action items.</em></p>"
+          : `<ul style="list-style: none; padding-left: 1em">${items
+              .map((item) => {
+                const t = item.taskId ? tasks.find((x) => x.id === item.taskId) : null;
+                const suffix = t ? ` → ${escapeHtml(t.ticketId)}` : "";
+                return `<li>${item.done ? "☑" : "☐"} ${escapeHtml(item.text)}${suffix}</li>`;
+              })
+              .join("")}</ul>`
+      )
+    );
+  } else {
+    parts.push(bodyHtml(note) || "<p><em>No content.</em></p>");
+  }
+
+  return [
+    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">',
+    "<head>",
+    '<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />',
+    `<title>${title}</title>`,
+    "<style>body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #0f172a; }</style>",
+    "</head>",
+    `<body>${parts.join("")}</body>`,
+    "</html>",
+  ].join("");
 }

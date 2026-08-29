@@ -32,6 +32,12 @@ async function migrate() {
   `;
   await sql`create index if not exists tasks_user_id_idx on tasks (user_id)`;
 
+  // Progress is derived from status and subtasks (see lib/progress.js) unless
+  // a task opts out. Jira-synced tasks opt out by default: their progress
+  // comes from Jira and must not be overwritten by our own rule.
+  await sql`alter table tasks add column if not exists progress_auto boolean not null default true`;
+  await sql`update tasks set progress_auto = false where sync_source <> 'Manual'`;
+
   await sql`
     create table if not exists comments (
       id text primary key,
@@ -58,6 +64,11 @@ async function migrate() {
       assignees jsonb not null
     )
   `;
+  // Status name -> percent complete, driving automatic progress for tasks
+  // with no subtasks. Empty means "not configured"; the API falls back to
+  // DEFAULT_STATUS_PROGRESS so the feature works before anyone visits
+  // Configuration.
+  await sql`alter table board_config add column if not exists status_progress jsonb not null default '{}'`;
 
   await sql`
     create table if not exists jira_config (
@@ -89,6 +100,11 @@ async function migrate() {
     )
   `;
   await sql`alter table notes add column if not exists attachments jsonb not null default '[]'`;
+  // The rich note document (Tiptap/ProseMirror JSON). `body` is kept as a
+  // derived plain-text mirror of it, so search and previews need no changes
+  // and pre-rich notes need no backfill — they simply have a null body_rich
+  // and get lifted into a document the first time they are opened.
+  await sql`alter table notes add column if not exists body_rich jsonb`;
   await sql`create index if not exists notes_user_id_idx on notes (user_id)`;
 
   await sql`
@@ -117,6 +133,8 @@ async function migrate() {
     )
   `;
   await sql`create index if not exists team_tasks_org_id_idx on team_tasks (org_id)`;
+  await sql`alter table team_tasks add column if not exists progress_auto boolean not null default true`;
+  await sql`update team_tasks set progress_auto = false where sync_source <> 'Manual'`;
 
   // Migrate a pre-existing team_tasks table from single `assignee` (a
   // nullable Clerk user id) to the `assignee_ids` jsonb array above. Only
@@ -160,6 +178,7 @@ async function migrate() {
       types jsonb not null
     )
   `;
+  await sql`alter table team_board_config add column if not exists status_progress jsonb not null default '{}'`;
 
   // Calendar events (meetings/invites), kept in per-scope tables for the same
   // reason tasks are: a query against one can never return the other's rows.
@@ -201,8 +220,37 @@ async function migrate() {
   `;
   await sql`create index if not exists team_calendar_events_org_id_idx on team_calendar_events (org_id)`;
 
+  // Time tracking. Unlike tasks, a time entry is always owned by the person
+  // who recorded it, so personal and team work share one table and are told
+  // apart by `scope` rather than living in separate tables.
+  await sql`
+    create table if not exists time_entries (
+      id text primary key,
+      user_id text not null,
+      scope text not null default 'personal',
+      org_id text,
+      task_id text,
+      description text not null default '',
+      started_at text not null,
+      ended_at text,
+      duration_seconds integer,
+      source text not null default 'timer',
+      created_at text not null,
+      updated_at text not null
+    )
+  `;
+  await sql`create index if not exists time_entries_user_id_idx on time_entries (user_id)`;
+  await sql`create index if not exists time_entries_task_id_idx on time_entries (task_id)`;
+  // A running entry is one with no end time. This makes "at most one timer
+  // running per person" a database guarantee rather than something the API
+  // has to get right on every path, including concurrent ones.
+  await sql`
+    create unique index if not exists time_entries_one_running_idx
+    on time_entries (user_id) where ended_at is null
+  `;
+
   console.log(
-    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events ready."
+    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries ready."
   );
 }
 

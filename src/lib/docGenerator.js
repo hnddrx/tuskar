@@ -116,8 +116,11 @@ function slug(s) {
     .replace(/\s+/g, "-");
 }
 
-export function downloadMarkdown(filename, content) {
-  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+// Byte-order mark: what makes Word read the payload as UTF-8 rather than the
+// system codepage, which otherwise mangles anything non-ASCII.
+const UTF8_BOM = "﻿";
+
+function downloadBlob(filename, blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -126,4 +129,16 @@ export function downloadMarkdown(filename, content) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+export function downloadMarkdown(filename, content) {
+  downloadBlob(filename, new Blob([content], { type: "text/markdown;charset=utf-8" }));
+}
+
+// Word, Pages and Google Docs all open an HTML payload served as .doc. The
+export function downloadWordDoc(filename, html) {
+  downloadBlob(
+    filename,
+    new Blob([UTF8_BOM, html], { type: "application/msword;charset=utf-8" })
+  );
 }

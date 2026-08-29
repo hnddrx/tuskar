@@ -16,12 +16,17 @@ import {
   X,
   Users,
   CalendarDays,
+  Timer,
+  Square,
 } from "lucide-react";
 import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 import { DONE_STATUSES } from "@/lib/constants";
 import ThemeToggle from "@/components/ThemeToggle";
 import Logo, { Wordmark } from "@/components/Logo";
+import { useNow } from "@/lib/useNow";
+import { entrySeconds } from "@/lib/time";
+import { formatCountdown } from "@/lib/pomodoro";
 
 // Grouped so "my stuff" and "the team's stuff" read as two different places
 // at a glance — the two used to sit in one flat list where only the word
@@ -32,6 +37,7 @@ const NAV_SECTIONS = [
     items: [
       { href: "/", label: "Overview", icon: LayoutDashboard },
       { href: "/calendar", label: "Calendar", icon: CalendarDays },
+      { href: "/time", label: "Time", icon: Timer },
     ],
   },
   {
@@ -147,6 +153,43 @@ function NavLinks({ pathname, onNavigate }) {
   );
 }
 
+// Shown in the sidebar whenever a timer is running, so a clock left going on
+// another page (or another device) is impossible to miss.
+function RunningTimer({ running, tasks, onStop }) {
+  // The ticker only runs while something is being timed.
+  const now = useNow(1000, Boolean(running));
+  if (!running) return null;
+
+  const task = running.taskId ? tasks.find((t) => t.id === running.taskId) : null;
+
+  return (
+    <div className="border-t border-slate-200 px-4 pt-4 dark:border-slate-800">
+      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 dark:border-red-900 dark:bg-red-950/60">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-red-600 dark:text-red-400">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" />
+            Tracking
+          </span>
+          <button
+            onClick={() => onStop(running.id)}
+            title="Stop the timer"
+            aria-label="Stop the timer"
+            className="rounded p-1 text-red-600 transition-colors hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900"
+          >
+            <Square size={13} />
+          </button>
+        </div>
+        <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-red-700 dark:text-red-300">
+          {formatCountdown(entrySeconds(running, now))}
+        </p>
+        <p className="truncate text-[11px] text-red-600/80 dark:text-red-400/80">
+          {task ? `${task.ticketId} — ${task.name}` : running.description || "General time"}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function OpenCount({ hydrated, count }) {
   return (
     <div className="border-t border-slate-200 p-4 dark:border-slate-800">
@@ -191,6 +234,7 @@ export default function AppShell({ children }) {
   const pathname = usePathname();
   const {
     personal: { tasks },
+    time: { running, stop },
     hydrated,
     syncError,
     retrySync,
@@ -258,7 +302,8 @@ export default function AppShell({ children }) {
               <ThemeToggle />
             </div>
             <NavLinks pathname={pathname} onNavigate={() => setDrawerOpen(false)} />
-            <OpenCount hydrated={hydrated} count={openCount} />
+            <RunningTimer running={running} tasks={tasks} onStop={stop} />
+        <OpenCount hydrated={hydrated} count={openCount} />
           </div>
         </div>
       )}
@@ -270,6 +315,7 @@ export default function AppShell({ children }) {
           <ThemeToggle />
         </div>
         <NavLinks pathname={pathname} />
+        <RunningTimer running={running} tasks={tasks} onStop={stop} />
         <OpenCount hydrated={hydrated} count={openCount} />
       </aside>
 

@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useAuth } from "@clerk/nextjs";
 import { Plus, Search, Download, List, LayoutGrid, Pencil, Trash2 } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ConfirmProvider";
@@ -21,40 +20,15 @@ const TYPE_FILTERS = [
 const VIEW_KEY = "taskar:notes-view:v1";
 
 export default function NotesPage() {
-  const { personal: { tasks } } = useTasks();
-  const { userId } = useAuth();
+  const {
+    personal: { tasks, notes, refreshNotes, hydrated },
+  } = useTasks();
   const confirm = useConfirm();
-  const [notes, setNotes] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [view, setView] = useState("card");
-  const lastUserIdRef = useRef(undefined);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    // Switched accounts without a full page reload — clear the previous
-    // account's notes immediately so they never linger on screen.
-    if (lastUserIdRef.current !== undefined && lastUserIdRef.current !== userId) {
-      setNotes([]);
-      setLoading(true);
-    }
-    lastUserIdRef.current = userId;
-
-    fetch("/api/notes")
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled) setNotes(data);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]);
+  const loading = !hydrated;
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -88,7 +62,7 @@ export default function NotesPage() {
     });
     if (!ok) return;
     const res = await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
-    if (res.ok) setNotes((prev) => prev.filter((n) => n.id !== note.id));
+    if (res.ok) refreshNotes();
   }
 
   return (

@@ -13,16 +13,21 @@ import {
   X,
   Mic,
   MicOff,
-  ImagePlus,
+  FilePlus2,
+  FileText,
   Circle,
   Loader2,
   Paperclip,
+  ChevronDown,
 } from "lucide-react";
+import { ATTACHMENT_ACCEPT, formatFileSize } from "@/lib/attachments";
 import ConfigListEditor from "@/components/ConfigListEditor";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { NoteTypeBadge } from "@/components/Badge";
-import { generateNoteDoc } from "@/lib/noteDocGenerator";
-import { downloadMarkdown } from "@/lib/docGenerator";
+import { generateNoteDoc, generateNoteWordHtml } from "@/lib/noteDocGenerator";
+import { downloadMarkdown, downloadWordDoc } from "@/lib/docGenerator";
+import RichTextEditor from "@/components/RichTextEditor";
+import { fromPlainText, toPlainText } from "@/lib/richText";
 import { newId } from "@/lib/id";
 import { useSpeechDictation } from "@/lib/useSpeechDictation";
 import { DICTATION_LANG_KEY, DICTATION_LANGUAGES } from "@/lib/constants";
@@ -48,6 +53,8 @@ export default function NoteEditor({
   // insert-conflicting) autosave on top of it.
   const explicitSaveRef = useRef(false);
   const unmountFlushRef = useRef(null);
+  // The live editor instance, so dictation can insert at the cursor.
+  const editorRef = useRef(null);
   useEffect(() => {
     unmountFlushRef.current = () => {
       if (explicitSaveRef.current) return;
@@ -57,7 +64,7 @@ export default function NoteEditor({
         const draft = { ...note, ...pending };
         const hasContent = Boolean(
           draft.title?.trim() ||
-            draft.body?.trim() ||
+            toPlainText(draft.bodyRich).trim() ||
             draft.attendees?.length ||
             draft.agenda?.length ||
             draft.actionItems?.length
@@ -108,9 +115,22 @@ export default function NoteEditor({
     setPendingChanges({});
   }
 
-  function handleExport() {
-    const draft = { ...note, ...pendingChanges };
+  const [exportOpen, setExportOpen] = useState(false);
+
+  function draftNote() {
+    return { ...note, ...pendingChanges };
+  }
+
+  function handleExportMarkdown() {
+    const draft = draftNote();
     downloadMarkdown(`${draft.title || "note"}.md`, generateNoteDoc(draft, tasks));
+  }
+
+  // Carries the formatting Markdown cannot express — colour, font size,
+  // alignment and tables.
+  function handleExportWord() {
+    const draft = draftNote();
+    downloadWordDoc(`${draft.title || "note"}.doc`, generateNoteWordHtml(draft, tasks));
   }
 
   const [dictationLang, setDictationLang] = useState("");
@@ -124,11 +144,17 @@ export default function NoteEditor({
     localStorage.setItem(DICTATION_LANG_KEY, code);
   }
 
-  const { supported: voiceSupported, listening: voiceListening, toggle: toggleVoice } =
-    useSpeechDictation((transcript) => {
-      const current = effective("body");
-      patchPending("body", current ? `${current} ${transcript}` : transcript);
-    }, dictationLang);
+  const {
+    supported: voiceSupported,
+    listening: voiceListening,
+    error: voiceError,
+    toggle: toggleVoice,
+  } = useSpeechDictation((transcript) => {
+    // Insert at the cursor through the editor rather than appending to a
+    // string, so dictated text lands where the user is actually typing and
+    // picks up whatever formatting is active there.
+    editorRef.current?.chain().focus().insertContent(transcript + " ").run();
+  }, dictationLang);
 
   const type = effective("type");
   const isMom = type === "mom";
@@ -140,12 +166,50 @@ export default function NoteEditor({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <NoteTypeBadge type={type} />
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
-          >
-            <Download size={14} /> Export
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setExportOpen((o) => !o)}
+              aria-haspopup="menu"
+              aria-expanded={exportOpen}
+              className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
+            >
+              <Download size={14} /> Export <ChevronDown size={12} />
+            </button>
+            {exportOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setExportOpen(false)}
+                  aria-hidden="true"
+                />
+                <div
+                  role="menu"
+                  className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-800 dark:bg-slate-900"
+                >
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setExportOpen(false);
+                      handleExportMarkdown();
+                    }}
+                    className="block w-full px-3 py-2 text-left text-sm text-slate-600 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Markdown (.md)
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setExportOpen(false);
+                      handleExportWord();
+                    }}
+                    className="block w-full px-3 py-2 text-left text-sm text-slate-600 transition-colors hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+                  >
+                    Word / Docs (.doc)
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           {mode === "edit" && (
             <button
               onClick={onDelete}
@@ -229,12 +293,22 @@ export default function NoteEditor({
                 </button>
               </div>
             </div>
-            <textarea
-              value={effective("body")}
-              onChange={(e) => patchPending("body", e.target.value)}
-              rows={16}
+            {voiceError && (
+              <p
+                role="status"
+                className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
+              >
+                {voiceError}
+              </p>
+            )}
+            <RichTextEditor
+              key={note.id}
+              value={note.bodyRich || fromPlainText(note.body)}
+              onChange={(doc) => patchPending("bodyRich", doc)}
+              onReady={(instance) => {
+                editorRef.current = instance;
+              }}
               placeholder={isMom ? "What was discussed…" : "Write your note…"}
-              className="w-full border-0 px-0 text-sm leading-relaxed text-slate-700 placeholder:text-slate-400 focus:outline-none dark:text-slate-300 dark:placeholder:text-slate-600"
             />
           </div>
 
@@ -477,7 +551,7 @@ function AttachmentsPanel({ noteId, mode, attachments, onAttachmentsChange }) {
 
       {mode === "create" ? (
         <p className="text-xs text-slate-400 dark:text-slate-500">
-          Save this note first to add images or recordings.
+          Save this note first to add files or recordings.
         </p>
       ) : (
         <>
@@ -485,7 +559,7 @@ function AttachmentsPanel({ noteId, mode, attachments, onAttachmentsChange }) {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept={ATTACHMENT_ACCEPT}
               className="hidden"
               onChange={handleFilePick}
             />
@@ -495,7 +569,7 @@ function AttachmentsPanel({ noteId, mode, attachments, onAttachmentsChange }) {
               disabled={uploading || recording}
               className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
             >
-              <ImagePlus size={13} /> Add image
+              <FilePlus2 size={13} /> Add file
             </button>
             {mediaRecorderSupported && (
               <button
@@ -528,23 +602,35 @@ function AttachmentsPanel({ noteId, mode, attachments, onAttachmentsChange }) {
                   key={a.id}
                   className="flex items-center gap-2 rounded-md border border-slate-100 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-800/60"
                 >
-                  {a.kind === "image" ? (
+                  {a.kind === "image" && (
                     <img
                       src={`/api/notes/${noteId}/attachments/${a.id}`}
                       alt={a.filename}
                       className="h-12 w-12 shrink-0 rounded object-cover"
                     />
-                  ) : (
+                  )}
+                  {a.kind === "audio" && (
                     <audio
                       controls
                       src={`/api/notes/${noteId}/attachments/${a.id}`}
                       className="h-8 flex-1"
                     />
                   )}
-                  {a.kind === "image" && (
-                    <span className="flex-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                  {a.kind === "file" && (
+                    <FileText size={20} className="shrink-0 text-slate-400 dark:text-slate-500" />
+                  )}
+                  {a.kind !== "audio" && (
+                    <a
+                      href={`/api/notes/${noteId}/attachments/${a.id}`}
+                      download={a.filename}
+                      className="min-w-0 flex-1 truncate text-xs text-slate-600 transition-colors hover:underline dark:text-slate-400"
+                      title={a.filename}
+                    >
                       {a.filename}
-                    </span>
+                      <span className="ml-1 text-slate-400 dark:text-slate-500">
+                        {formatFileSize(a.size)}
+                      </span>
+                    </a>
                   )}
                   <button
                     onClick={() => deleteAttachment(a.id)}

@@ -34,6 +34,7 @@ export async function PATCH(request, { params }) {
       jira_link = ${merged.jiraLink},
       comment_count = ${merged.commentCount},
       sync_source = ${merged.syncSource},
+      progress_auto = ${merged.progressAuto !== false},
       updated_at = ${merged.updatedAt}
     where id = ${id} and user_id = ${userId}
     returning *

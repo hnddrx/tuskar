@@ -2,8 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { put } from "@vercel/blob";
 import { getSql, rowToNote } from "@/lib/db";
 import { newId, nowIso } from "@/lib/id";
-
-const MAX_SIZE = 20 * 1024 * 1024; // 20MB
+import { classifyAttachment, MAX_ATTACHMENT_SIZE } from "@/lib/attachments";
 
 export async function POST(request, { params }) {
   const { userId } = await auth();
@@ -22,23 +21,20 @@ export async function POST(request, { params }) {
   if (!(file instanceof File)) {
     return Response.json({ error: "No file provided" }, { status: 400 });
   }
-  if (file.size > MAX_SIZE) {
-    return Response.json({ error: "File is too large (max 20MB)" }, { status: 400 });
+
+  // Decided by extension, not by the browser-supplied content type — see
+  // lib/attachments.js.
+  const classification = classifyAttachment({
+    name: file.name,
+    type: file.type,
+    size: file.size,
+  });
+  if (classification.error) {
+    return Response.json({ error: classification.error }, { status: 400 });
   }
+  const { kind } = classification;
 
   const contentType = file.type || "application/octet-stream";
-  const kind = contentType.startsWith("image/")
-    ? "image"
-    : contentType.startsWith("audio/")
-      ? "audio"
-      : null;
-  if (!kind) {
-    return Response.json(
-      { error: "Only image or audio files are supported" },
-      { status: 400 }
-    );
-  }
-
   const attachmentId = newId("attachment");
   const safeName = (file.name || kind).replace(/[^\w.\-]/g, "_").slice(-80);
   const pathname = `notes/${userId}/${id}/${attachmentId}-${safeName}`;
@@ -46,7 +42,7 @@ export async function POST(request, { params }) {
   const blob = await put(pathname, file, {
     access: "private",
     contentType,
-    maximumSizeInBytes: MAX_SIZE,
+    maximumSizeInBytes: MAX_ATTACHMENT_SIZE,
   });
 
   const attachment = {

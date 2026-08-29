@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { describeSpeechError } from "@/lib/speechErrors";
 
 // Wraps the browser's built-in Web Speech API (SpeechRecognition) for live
 // dictation. Only finalized results are reported to onResult — no interim/
@@ -16,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // closure each render.
 export function useSpeechDictation(onResult, lang) {
   const [listening, setListening] = useState(false);
+  const [error, setError] = useState(null);
   const recognitionRef = useRef(null);
   const onResultRef = useRef(onResult);
 
@@ -23,9 +25,16 @@ export function useSpeechDictation(onResult, lang) {
     onResultRef.current = onResult;
   }, [onResult]);
 
-  const supported =
-    typeof window !== "undefined" &&
-    Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+  // Resolved in an effect rather than during render. Computing it inline from
+  // `typeof window` makes the server render "unsupported" (a disabled button)
+  // and the client's very first render "supported" — a hydration mismatch that
+  // behaves differently in a production build than under `next dev`, which is
+  // why the mic could come up dead on a deployed origin but fine locally.
+  const [supported, setSupported] = useState(false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSupported(Boolean(window.SpeechRecognition || window.webkitSpeechRecognition));
+  }, []);
 
   const effectiveLang =
     lang || (typeof navigator !== "undefined" && navigator.language) || "en-US";
@@ -47,7 +56,11 @@ export function useSpeechDictation(onResult, lang) {
       }
     };
     recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
+    recognition.onerror = (event) => {
+      setListening(false);
+      const message = describeSpeechError(event?.error);
+      if (message) setError(message);
+    };
 
     recognitionRef.current = recognition;
     return () => recognition.stop();
@@ -56,16 +69,51 @@ export function useSpeechDictation(onResult, lang) {
     // languages mid-session.
   }, [supported, effectiveLang]);
 
-  const toggle = useCallback(() => {
-    if (!recognitionRef.current) return;
+  const toggle = useCallback(async () => {
+    const recognition = recognitionRef.current;
+    if (!recognition) return;
+
     if (listening) {
-      recognitionRef.current.stop();
+      recognition.stop();
       setListening(false);
-    } else {
-      recognitionRef.current.start();
+      return;
+    }
+
+    setError(null);
+
+    // Ask for the microphone explicitly, inside the click, before handing off
+    // to SpeechRecognition. Permission is per-origin and does not carry over
+    // from localhost to a deployed URL; Chrome's own implicit prompt is easy
+    // to miss or dismiss, and a dismissed prompt is indistinguishable from a
+    // dead button. Requesting it here turns that into a real message.
+    if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      } catch (err) {
+        setError(
+          describeSpeechError(
+            err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError"
+              ? "audio-capture"
+              : "not-allowed"
+          )
+        );
+        return;
+      }
+    }
+
+    try {
+      recognition.start();
       setListening(true);
+    } catch {
+      // start() throws InvalidStateError when a previous session hasn't fully
+      // released yet. Reset rather than leaving the UI stuck mid-state.
+      recognition.stop();
+      setError("Dictation was still finishing the last session — try again.");
     }
   }, [listening]);
 
-  return { supported, listening, toggle };
+  const clearError = useCallback(() => setError(null), []);
+
+  return { supported, listening, error, toggle, clearError };
 }

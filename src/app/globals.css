@@ -35,3 +35,175 @@ body {
 .dark * {
   scrollbar-color: #334155 transparent;
 }
+
+/* Note editor content (Tiptap). Tailwind's preflight strips list markers and
+   heading sizes, so the editor's own document styles are declared here — this
+   is the one place in the app that renders user-authored rich text. */
+.taskar-prose {
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: #334155;
+}
+
+.dark .taskar-prose {
+  color: #cbd5e1;
+}
+
+.taskar-prose > * + * {
+  margin-top: 0.75em;
+}
+
+.taskar-prose h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.taskar-prose h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.taskar-prose ul,
+.taskar-prose ol {
+  padding-left: 1.5rem;
+}
+
+.taskar-prose ul {
+  list-style: disc;
+}
+
+.taskar-prose ol {
+  list-style: decimal;
+}
+
+.taskar-prose li > p {
+  margin: 0;
+}
+
+.taskar-prose ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0.25rem;
+}
+
+.taskar-prose ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.taskar-prose ul[data-type="taskList"] li > label {
+  margin-top: 0.3rem;
+}
+
+.taskar-prose blockquote {
+  border-left: 3px solid #cbd5e1;
+  padding-left: 0.875rem;
+  color: #64748b;
+}
+
+.dark .taskar-prose blockquote {
+  border-left-color: #334155;
+  color: #94a3b8;
+}
+
+.taskar-prose pre {
+  background: #f1f5f9;
+  border-radius: 0.375rem;
+  padding: 0.75rem 0.875rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.dark .taskar-prose pre {
+  background: #1e293b;
+}
+
+.taskar-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+
+.taskar-prose :not(pre) > code {
+  background: #f1f5f9;
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.3rem;
+}
+
+.dark .taskar-prose :not(pre) > code {
+  background: #1e293b;
+}
+
+.taskar-prose a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.taskar-prose hr {
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.dark .taskar-prose hr {
+  border-top-color: #1e293b;
+}
+
+/* Tables need to scroll on a phone rather than widen the page. */
+.taskar-prose table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+  overflow: hidden;
+}
+
+.taskar-prose th,
+.taskar-prose td {
+  border: 1px solid #e2e8f0;
+  padding: 0.375rem 0.5rem;
+  vertical-align: top;
+  position: relative;
+}
+
+.dark .taskar-prose th,
+.dark .taskar-prose td {
+  border-color: #334155;
+}
+
+.taskar-prose th {
+  background: #f8fafc;
+  font-weight: 600;
+  text-align: left;
+}
+
+.dark .taskar-prose th {
+  background: #1e293b;
+}
+
+.taskar-prose .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(37, 99, 235, 0.1);
+  pointer-events: none;
+}
+
+.taskar-prose .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #2563eb;
+  cursor: col-resize;
+}
+
+/* Placeholder for an empty document. */
+.taskar-prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: #94a3b8;
+}

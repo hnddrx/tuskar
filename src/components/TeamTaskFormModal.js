@@ -16,6 +16,7 @@ const EMPTY = {
   startDate: "",
   targetDate: "",
   progress: 0,
+  progressAuto: true,
   description: "",
   githubBranch: "",
   jiraLink: "",
@@ -43,6 +44,7 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
               startDate: task.startDate || "",
               targetDate: task.targetDate || "",
               progress: task.progress || 0,
+              progressAuto: task.progressAuto !== false,
               description: task.description || "",
               githubBranch: task.githubBranch === "N/A" ? "" : task.githubBranch,
               jiraLink: task.jiraLink || "",
@@ -221,16 +223,33 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
-                Progress %
-              </label>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
+                  Progress %
+                </label>
+                <label className="flex cursor-pointer items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                  <input
+                    type="checkbox"
+                    checked={form.progressAuto}
+                    onChange={(e) => set("progressAuto", e.target.checked)}
+                    className="h-3 w-3 accent-slate-900 dark:accent-slate-100"
+                  />
+                  Auto
+                </label>
+              </div>
               <input
                 type="number"
                 min={0}
                 max={100}
                 value={form.progress}
+                disabled={form.progressAuto}
                 onChange={(e) => set("progress", e.target.value)}
-                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:focus:border-slate-500 transition-colors"
+                title={
+                  form.progressAuto
+                    ? "Calculated from this task's status and subtasks"
+                    : undefined
+                }
+                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm transition-colors focus:border-slate-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 dark:border-slate-800 dark:focus:border-slate-500 dark:disabled:bg-slate-800/60 dark:disabled:text-slate-500"
               />
             </div>
           </div>

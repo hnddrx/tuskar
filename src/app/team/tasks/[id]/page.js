@@ -12,6 +12,7 @@ import TeamAssigneePicker from "@/components/TeamAssigneePicker";
 import CommentThread from "@/components/CommentThread";
 import PageHeader from "@/components/PageHeader";
 import Breadcrumbs from "@/components/Breadcrumbs";
+import TaskTimePanel from "@/components/TaskTimePanel";
 import NoActiveTeam from "@/components/NoActiveTeam";
 import { generateTaskDoc, downloadMarkdown } from "@/lib/docGenerator";
 
@@ -267,19 +268,49 @@ function TeamTaskDetailPageInner() {
                 <div>
                   <dt className="text-xs text-slate-400 dark:text-slate-500">Progress</dt>
                   <dd className="mt-1">
-                    <InlineField
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={effective("progress") ?? 0}
-                      onCommit={(v) =>
-                        patchPending(
-                          "progress",
-                          Math.min(100, Math.max(0, Number(v) || 0))
-                        )
-                      }
-                      renderView={(v) => <ProgressBar value={v} />}
-                    />
+                    {effective("progressAuto") !== false ? (
+                      <div className="space-y-1.5">
+                        <ProgressBar value={task.progress} />
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                            Auto
+                          </span>
+                          <button
+                            onClick={() => patchPending("progressAuto", false)}
+                            className="text-xs text-slate-500 underline-offset-2 transition-colors hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-100"
+                          >
+                            Set manually
+                          </button>
+                        </div>
+                        <p className="text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+                          {subtasks.length > 0
+                            ? "Averaged across this task's subtasks."
+                            : `From the "${effective("status")}" status — change the mapping in Configuration.`}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <InlineField
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={effective("progress") ?? 0}
+                          onCommit={(v) =>
+                            patchPending(
+                              "progress",
+                              Math.min(100, Math.max(0, Number(v) || 0))
+                            )
+                          }
+                          renderView={(v) => <ProgressBar value={v} />}
+                        />
+                        <button
+                          onClick={() => patchPending("progressAuto", true)}
+                          className="text-xs text-slate-500 underline-offset-2 transition-colors hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-100"
+                        >
+                          Calculate automatically
+                        </button>
+                      </div>
+                    )}
                   </dd>
                 </div>
                 <Field label="Last update" value={task.lastUpdate || "—"} />
@@ -323,6 +354,8 @@ function TeamTaskDetailPageInner() {
                 </div>
               </dl>
             </section>
+
+            <TaskTimePanel taskId={task.id} scope="team" />
           </div>
         </div>
       </div>

@@ -16,6 +16,8 @@ import { useTasks } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/Badge";
 import { ProgressBar } from "@/components/ProgressBar";
+import { useNow } from "@/lib/useNow";
+import { formatDuration, totalForTask } from "@/lib/time";
 import TeamTaskFormModal from "@/components/TeamTaskFormModal";
 import PageHeader from "@/components/PageHeader";
 import NoActiveTeam from "@/components/NoActiveTeam";
@@ -43,6 +45,7 @@ const ALL_COLUMNS = [
   { key: "targetDate", label: "Target date" },
   { key: "progress", label: "Progress" },
   { key: "commentCount", label: "Comments" },
+  { key: "trackedSeconds", label: "Time" },
   { key: "syncSource", label: "Source" },
   { key: "createdAt", label: "Created" },
   { key: "githubBranch", label: "GitHub branch" },
@@ -117,6 +120,10 @@ const CELL_DEFS = {
   commentCount: {
     className: "px-4 py-2.5 text-center text-slate-500 dark:text-slate-400",
     render: (t) => t.commentCount || 0,
+  },
+  trackedSeconds: {
+    className: "whitespace-nowrap px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400",
+    render: (t) => formatDuration(t.trackedSeconds),
   },
   syncSource: {
     className: "px-4 py-2.5",
@@ -196,7 +203,7 @@ function normalize(v) {
 }
 
 function compareValues(a, b, key) {
-  if (key === "progress" || key === "commentCount") {
+  if (key === "progress" || key === "commentCount" || key === "trackedSeconds") {
     return (a[key] || 0) - (b[key] || 0);
   }
   if (key === "targetDate" || key === "startDate") {
@@ -220,7 +227,20 @@ export default function TeamTasksPage() {
 }
 
 function TeamTasksPageInner() {
-  const { team: { tasks, comments, config, deleteTask, orgId, orgName } } = useTasks();
+  const {
+    team: { tasks: rawTasks, comments, config, deleteTask, orgId, orgName },
+    time: { entries: timeEntries },
+  } = useTasks();
+  // Coarse tick — see the personal table.
+  const timeNow = useNow(60000);
+  const tasks = useMemo(
+    () =>
+      rawTasks.map((t) => ({
+        ...t,
+        trackedSeconds: totalForTask(timeEntries, t.id, timeNow),
+      })),
+    [rawTasks, timeEntries, timeNow]
+  );
   const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();

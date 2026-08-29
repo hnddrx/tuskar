@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { FileDown, ExternalLink, GitBranch, Save, Undo2 } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
-import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/Badge";
+import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge, NoteTypeBadge } from "@/components/Badge";
 import { ProgressBar } from "@/components/ProgressBar";
 import InlineField from "@/components/InlineField";
 import CommentThread from "@/components/CommentThread";
 import PageHeader from "@/components/PageHeader";
 import Breadcrumbs from "@/components/Breadcrumbs";
+import TaskTimePanel from "@/components/TaskTimePanel";
 import { generateTaskDoc, downloadMarkdown } from "@/lib/docGenerator";
 
 export default function TaskDetailPage() {
@@ -24,7 +25,9 @@ export default function TaskDetailPage() {
 function TaskDetailPageInner() {
   const { id } = useParams();
   const searchParams = useSearchParams();
-  const { personal: { tasks, comments, config, updateTask, addComment, deleteComment } } = useTasks();
+  const {
+    personal: { tasks, comments, notes, config, updateTask, addComment, deleteComment },
+  } = useTasks();
 
   // Unsaved edits, keyed by field, vs. the saved task — Odoo-style: fields
   // read/write through this diff instead of writing straight to storage, so
@@ -46,6 +49,7 @@ function TaskDetailPageInner() {
   }
 
   const subtasks = tasks.filter((t) => t.parentId === task.id);
+  const linkedNotes = notes.filter((n) => n.linkedTaskId === task.id);
   const isDirty = Object.keys(pendingChanges).length > 0;
 
   function effective(field) {
@@ -224,6 +228,44 @@ function TaskDetailPageInner() {
                 </div>
               </section>
             )}
+
+            {/* Notes carry the link to the task, so this is the only place
+                the relationship is visible from the task's side. Rendered
+                even when empty: the Notes column links straight to #notes. */}
+            <section
+              id="notes"
+              className="scroll-mt-4 rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-5 dark:border-slate-800 dark:bg-slate-900"
+            >
+              <h2 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                Linked notes ({linkedNotes.length})
+              </h2>
+              {linkedNotes.length === 0 ? (
+                <p className="text-xs text-slate-400 dark:text-slate-500">
+                  No notes link to this task yet. Open any note and pick it under
+                  &ldquo;Link to task&rdquo;.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {linkedNotes.map((n) => (
+                    <Link
+                      key={n.id}
+                      href={`/notes/${n.id}`}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <NoteTypeBadge type={n.type} />
+                        <span className="truncate text-sm text-slate-700 dark:text-slate-300">
+                          {n.title || "Untitled note"}
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">
+                        {(n.updatedAt || "").slice(0, 10)}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
 
           <div className="space-y-4">
@@ -264,19 +306,49 @@ function TaskDetailPageInner() {
                 <div>
                   <dt className="text-xs text-slate-400 dark:text-slate-500">Progress</dt>
                   <dd className="mt-1">
-                    <InlineField
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={effective("progress") ?? 0}
-                      onCommit={(v) =>
-                        patchPending(
-                          "progress",
-                          Math.min(100, Math.max(0, Number(v) || 0))
-                        )
-                      }
-                      renderView={(v) => <ProgressBar value={v} />}
-                    />
+                    {effective("progressAuto") !== false ? (
+                      <div className="space-y-1.5">
+                        <ProgressBar value={task.progress} />
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                            Auto
+                          </span>
+                          <button
+                            onClick={() => patchPending("progressAuto", false)}
+                            className="text-xs text-slate-500 underline-offset-2 transition-colors hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-100"
+                          >
+                            Set manually
+                          </button>
+                        </div>
+                        <p className="text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+                          {subtasks.length > 0
+                            ? "Averaged across this task's subtasks."
+                            : `From the "${effective("status")}" status — change the mapping in Configuration.`}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <InlineField
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={effective("progress") ?? 0}
+                          onCommit={(v) =>
+                            patchPending(
+                              "progress",
+                              Math.min(100, Math.max(0, Number(v) || 0))
+                            )
+                          }
+                          renderView={(v) => <ProgressBar value={v} />}
+                        />
+                        <button
+                          onClick={() => patchPending("progressAuto", true)}
+                          className="text-xs text-slate-500 underline-offset-2 transition-colors hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-100"
+                        >
+                          Calculate automatically
+                        </button>
+                      </div>
+                    )}
                   </dd>
                 </div>
                 <Field label="Last update" value={task.lastUpdate || "—"} />
@@ -320,6 +392,8 @@ function TaskDetailPageInner() {
                 </div>
               </dl>
             </section>
+
+            <TaskTimePanel taskId={task.id} scope="personal" />
           </div>
         </div>
       </div>

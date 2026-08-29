@@ -10,7 +10,7 @@ import NoteEditor from "@/components/NoteEditor";
 export default function NoteDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const { personal: { tasks, addTask } } = useTasks();
+  const { personal: { tasks, addTask, refreshNotes } } = useTasks();
   const { userId } = useAuth();
   const confirm = useConfirm();
   const [note, setNote] = useState(null);
@@ -55,6 +55,8 @@ export default function NoteDetailPage() {
       const updated = await res.json();
       setNote(updated);
       setSaveError(null);
+      // Keep the copy task pages read in step with what was just saved.
+      refreshNotes();
     } catch (err) {
       setSaveError(err.message || "Failed to save");
     }
@@ -75,6 +77,7 @@ export default function NoteDetailPage() {
     try {
       const res = await fetch(`/api/notes/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
+      refreshNotes();
       router.push("/notes");
     } catch (err) {
       setSaveError(err.message || "Failed to delete");

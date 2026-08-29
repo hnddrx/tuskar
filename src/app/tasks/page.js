@@ -16,6 +16,8 @@ import { useTasks } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/Badge";
 import { ProgressBar } from "@/components/ProgressBar";
+import { useNow } from "@/lib/useNow";
+import { formatDuration, totalForTask } from "@/lib/time";
 import TaskFormModal from "@/components/TaskFormModal";
 import PageHeader from "@/components/PageHeader";
 import ColumnsPicker from "@/components/ColumnsPicker";
@@ -42,6 +44,8 @@ const ALL_COLUMNS = [
   { key: "targetDate", label: "Target date" },
   { key: "progress", label: "Progress" },
   { key: "commentCount", label: "Comments" },
+  { key: "noteCount", label: "Notes" },
+  { key: "trackedSeconds", label: "Time" },
   { key: "syncSource", label: "Source" },
   { key: "createdAt", label: "Created" },
   { key: "githubBranch", label: "GitHub branch" },
@@ -116,6 +120,25 @@ const CELL_DEFS = {
   commentCount: {
     className: "px-4 py-2.5 text-center text-slate-500 dark:text-slate-400",
     render: (t) => t.commentCount || 0,
+  },
+  trackedSeconds: {
+    className: "whitespace-nowrap px-4 py-2.5 text-right font-mono text-xs tabular-nums text-slate-500 dark:text-slate-400",
+    render: (t) => formatDuration(t.trackedSeconds),
+  },
+  noteCount: {
+    className: "px-4 py-2.5 text-center text-slate-500 dark:text-slate-400",
+    render: (t, { taskHref }) =>
+      t.noteCount ? (
+        <Link
+          href={`${taskHref(t.id)}#notes`}
+          className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+          title={`${t.noteCount} linked note${t.noteCount === 1 ? "" : "s"}`}
+        >
+          {t.noteCount}
+        </Link>
+      ) : (
+        <span className="text-slate-300 dark:text-slate-600">—</span>
+      ),
   },
   syncSource: {
     className: "px-4 py-2.5",
@@ -198,7 +221,12 @@ function normalize(v) {
 }
 
 function compareValues(a, b, key) {
-  if (key === "progress" || key === "commentCount") {
+  if (
+    key === "progress" ||
+    key === "commentCount" ||
+    key === "noteCount" ||
+    key === "trackedSeconds"
+  ) {
     return (a[key] || 0) - (b[key] || 0);
   }
   if (key === "targetDate" || key === "startDate") {
@@ -219,7 +247,13 @@ export default function TasksPage() {
 }
 
 function TasksPageInner() {
-  const { personal: { tasks, comments, config, deleteTask } } = useTasks();
+  const {
+    personal: { tasks: rawTasks, comments, notes, config, deleteTask },
+    time: { entries: timeEntries },
+  } = useTasks();
+  // A coarse tick: enough to keep a running timer's column roughly current
+  // without re-rendering the whole table every second.
+  const timeNow = useNow(60000);
   const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -227,6 +261,22 @@ function TasksPageInner() {
     () => parseTasksSearchParams(searchParams),
     [searchParams]
   );
+  // Notes carry the link (notes.linkedTaskId), so the count has to be
+  // rolled up from their side. Folding it onto the task means the Notes
+  // column sorts through the same numeric path as Comments.
+  const tasks = useMemo(() => {
+    const counts = new Map();
+    for (const note of notes) {
+      if (!note.linkedTaskId) continue;
+      counts.set(note.linkedTaskId, (counts.get(note.linkedTaskId) || 0) + 1);
+    }
+    return rawTasks.map((t) => ({
+      ...t,
+      noteCount: counts.get(t.id) || 0,
+      trackedSeconds: totalForTask(timeEntries, t.id, timeNow),
+    }));
+  }, [rawTasks, notes, timeEntries, timeNow]);
+
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);

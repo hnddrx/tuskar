@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { getSql, rowToNote } from "@/lib/db";
+import { toPlainText } from "@/lib/richText";
 
 export async function GET(_request, { params }) {
   const { userId } = await auth();
@@ -29,12 +30,16 @@ export async function PATCH(request, { params }) {
   }
 
   const merged = { ...rowToNote(existing), ...patch };
+  // Same rule as the create route: the searchable text is derived from the
+  // document, never taken from the request.
+  const body = merged.bodyRich ? toPlainText(merged.bodyRich) : merged.body || "";
 
   const [row] = await sql`
     update notes set
       type = ${merged.type},
       title = ${merged.title},
-      body = ${merged.body},
+      body = ${body},
+      body_rich = ${merged.bodyRich ? JSON.stringify(merged.bodyRich) : null}::jsonb,
       linked_task_id = ${merged.linkedTaskId || null},
       attendees = ${JSON.stringify(merged.attendees || [])}::jsonb,
       agenda = ${JSON.stringify(merged.agenda || [])}::jsonb,

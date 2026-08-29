@@ -3,6 +3,7 @@
 import { useTasks } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ConfirmProvider";
 import ConfigListEditor from "@/components/ConfigListEditor";
+import StatusProgressEditor from "@/components/StatusProgressEditor";
 import PageHeader from "@/components/PageHeader";
 
 export default function ConfigPage() {
@@ -24,7 +25,7 @@ export default function ConfigPage() {
     <div className="flex-1">
       <PageHeader
         title="Configuration"
-        subtitle="These lists power every dropdown in the app — statuses, priorities, task types, and assignees."
+        subtitle="These lists power every dropdown in the app — statuses, priorities, task types, and assignees — and set how status maps to progress."
         actions={
           <button
             onClick={handleReset}
@@ -57,6 +58,11 @@ export default function ConfigPage() {
             title="Assignees"
             items={config.assignees}
             onChange={(v) => updateConfig("assignees", v)}
+          />
+          <StatusProgressEditor
+            statuses={config.statuses}
+            statusProgress={config.statusProgress}
+            onChange={(v) => updateConfig("statusProgress", v)}
           />
         </div>
       </div>

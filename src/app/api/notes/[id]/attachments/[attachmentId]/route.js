@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { del, get } from "@vercel/blob";
 import { getSql, rowToNote } from "@/lib/db";
+import { dispositionFor } from "@/lib/attachments";
 
 async function findAttachment(sql, id, attachmentId, userId) {
   const [existing] = await sql`
@@ -15,6 +16,11 @@ async function findAttachment(sql, id, attachmentId, userId) {
 
 // Streams a private attachment back only to its owner — never a public,
 // guessable Blob URL.
+//
+// Only the types we render ourselves (images, audio) are served inline. Now
+// that arbitrary documents can be attached, anything else is forced to
+// download: an uploaded SVG or HTML file served inline would otherwise run
+// script on this origin, in the signed-in user's session.
 export async function GET(_request, { params }) {
   const { userId } = await auth();
   const { id, attachmentId } = await params;
@@ -33,7 +39,8 @@ export async function GET(_request, { params }) {
   return new Response(result.stream, {
     headers: {
       "Content-Type": found.attachment.contentType,
-      "Content-Disposition": `inline; filename="${found.attachment.filename}"`,
+      "Content-Disposition": `${dispositionFor(found.attachment.kind)}; filename="${found.attachment.filename}"`,
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, max-age=3600",
     },
   });
