@@ -30,7 +30,7 @@ export default function ChatDock() {
     // Extra bottom space on phones clears the page's own create button, which
     // is fixed to the same corner (bottom-5 right-5, mobile only). Applied to
     // the whole row so an open conversation cannot cover it either.
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-wrap items-end justify-end gap-2 p-2 pb-24 sm:inset-x-auto sm:right-0 sm:flex-nowrap sm:gap-3 sm:p-3">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-wrap items-end justify-end gap-2 p-2 pb-24 pr-5 sm:inset-x-auto sm:right-0 sm:flex-nowrap sm:gap-3 sm:p-3">
       {docked.map((w) => (
         <DockedWindow
           key={w.id}
