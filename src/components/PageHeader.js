@@ -44,7 +44,8 @@ export default function PageHeader({ title, subtitle, actions, children, mobileF
         <button
           onClick={mobileFab.onClick}
           aria-label={mobileFab.label || "New task"}
-          className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg transition-colors active:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:active:bg-slate-300 sm:hidden"
+          // Stacked above the floating chat launcher, which owns the corner.
+          className="fixed bottom-24 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg transition-colors active:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:active:bg-slate-300 sm:hidden"
         >
           <Plus size={24} />
         </button>
