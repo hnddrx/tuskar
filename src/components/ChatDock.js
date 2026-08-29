@@ -18,18 +18,28 @@ export default function ChatDock() {
   const { enabled, docked } = useChat();
   if (!enabled || docked.length === 0) return null;
 
+  // A phone has room for one conversation at a time, so only the most recently
+  // expanded one is shown there; the rest stay as collapsed title bars. On a
+  // wider screen they all sit side by side.
+  const lastExpandedId = [...docked].reverse().find((w) => !w.minimized)?.id ?? null;
+
   return (
-    // Hidden on phones: a docked window over a small screen would cover the
-    // page it is meant to sit beside. The Chat page is the mobile experience.
-    <div className="pointer-events-none fixed bottom-0 right-0 z-40 hidden items-end gap-3 p-3 sm:flex">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-wrap items-end justify-end gap-2 p-2 sm:inset-x-auto sm:right-0 sm:flex-nowrap sm:gap-3 sm:p-3">
       {docked.map((w) => (
-        <DockedWindow key={w.id} conversationId={w.id} minimized={w.minimized} />
+        <DockedWindow
+          key={w.id}
+          conversationId={w.id}
+          minimized={w.minimized}
+          // Collapsed bars are small enough to keep on a phone; a second
+          // expanded window is not.
+          hiddenOnMobile={!w.minimized && w.id !== lastExpandedId}
+        />
       ))}
     </div>
   );
 }
 
-function DockedWindow({ conversationId, minimized }) {
+function DockedWindow({ conversationId, minimized, hiddenOnMobile }) {
   const { conversations, userId, members, serverNow, close, toggleMinimize, markRead } =
     useChat();
   const {
@@ -57,8 +67,14 @@ function DockedWindow({ conversationId, minimized }) {
 
   return (
     <div
-      className={`pointer-events-auto flex w-72 flex-col overflow-hidden rounded-t-lg border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900 ${
-        minimized ? "" : "h-96"
+      className={`pointer-events-auto flex-col overflow-hidden rounded-t-lg border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900 ${
+        hiddenOnMobile ? "hidden sm:flex" : "flex"
+      } ${
+        minimized
+          ? // Collapsed: only as wide as its title, so several fit on a phone.
+            "w-auto max-w-[45vw] sm:w-72 sm:max-w-none"
+          : // Expanded: nearly the full width on a phone, a fixed panel above it.
+            "h-[70vh] w-[calc(100vw-1rem)] max-w-sm sm:h-96 sm:w-72 sm:max-w-none"
       }`}
     >
       <header className="flex items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-800 dark:bg-slate-800/60">
