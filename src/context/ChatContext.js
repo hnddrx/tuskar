@@ -18,10 +18,9 @@ const ChatContext = createContext(null);
 // everyone whenever you were looking at your tasks.
 const STATE_POLL_MS = 5000;
 
-// Docked windows are per-device UI, so they live in localStorage rather than
-// the database: which chats you have open is not something to sync.
-const DOCK_KEY = "taskar:chat-dock:v1";
-const MAX_DOCKED = 3;
+// Which conversation the widget has open is per-device UI, so it lives in
+// localStorage rather than the database.
+const PANEL_KEY = "taskar:chat-panel:v1";
 
 export function ChatProvider({ children }) {
   // Chat follows the signed-in person, not the selected team: direct messages
@@ -34,14 +33,17 @@ export function ChatProvider({ children }) {
   } = useTasks();
 
   const [state, setState] = useState(null); // { userId, now, members, conversations }
-  const [docked, setDocked] = useState([]); // [{ id, minimized }]
+  // The widget is one panel: closed, showing the conversation list, or
+  // showing one conversation. There is no separate window to keep track of.
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [activeId, setActiveId] = useState(null);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(DOCK_KEY);
+      const raw = localStorage.getItem(PANEL_KEY);
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (raw) setDocked(JSON.parse(raw));
+      if (raw) setActiveId(JSON.parse(raw).activeId ?? null);
     } catch {
       /* a corrupt value just means starting with nothing open */
     }
@@ -49,8 +51,8 @@ export function ChatProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (hydrated) localStorage.setItem(DOCK_KEY, JSON.stringify(docked));
-  }, [docked, hydrated]);
+    if (hydrated) localStorage.setItem(PANEL_KEY, JSON.stringify({ activeId }));
+  }, [activeId, hydrated]);
 
   const refresh = useCallback(async () => {
     if (!isSignedIn) return;
@@ -116,33 +118,21 @@ export function ChatProvider({ children }) {
     [refresh]
   );
 
+  // Opening a conversation shows it inside the panel rather than spawning a
+  // window beside it.
   const open = useCallback(
     (conversationId) => {
-      setDocked((current) => {
-        const existing = current.find((w) => w.id === conversationId);
-        // Re-opening a minimised window should restore it, not duplicate it.
-        if (existing) {
-          return current.map((w) =>
-            w.id === conversationId ? { ...w, minimized: false } : w
-          );
-        }
-        // Oldest window drops off rather than filling the screen.
-        return [...current, { id: conversationId, minimized: false }].slice(-MAX_DOCKED);
-      });
+      setActiveId(conversationId);
+      setPanelOpen(true);
       markRead(conversationId);
     },
     [markRead]
   );
 
-  const close = useCallback((conversationId) => {
-    setDocked((current) => current.filter((w) => w.id !== conversationId));
-  }, []);
-
-  const toggleMinimize = useCallback((conversationId) => {
-    setDocked((current) =>
-      current.map((w) => (w.id === conversationId ? { ...w, minimized: !w.minimized } : w))
-    );
-  }, []);
+  const togglePanel = useCallback(() => setPanelOpen((o) => !o), []);
+  const closePanel = useCallback(() => setPanelOpen(false), []);
+  // Back to the conversation list without closing the widget.
+  const back = useCallback(() => setActiveId(null), []);
 
   const conversations = useMemo(() => state?.conversations || [], [state]);
   const totalUnread = useMemo(
@@ -158,10 +148,12 @@ export function ChatProvider({ children }) {
       members: state?.members || [],
       conversations,
       totalUnread,
-      docked,
+      panelOpen,
+      activeId,
       open,
-      close,
-      toggleMinimize,
+      togglePanel,
+      closePanel,
+      back,
       markRead,
       refresh,
     }),
@@ -170,10 +162,12 @@ export function ChatProvider({ children }) {
       state,
       conversations,
       totalUnread,
-      docked,
+      panelOpen,
+      activeId,
       open,
-      close,
-      toggleMinimize,
+      togglePanel,
+      closePanel,
+      back,
       markRead,
       refresh,
     ]

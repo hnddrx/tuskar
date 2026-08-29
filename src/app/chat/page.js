@@ -17,7 +17,6 @@ export default function ChatPage() {
     conversations,
     markRead,
     refresh,
-    open: dock,
   } = useChat();
 
   const [active, setActive] = useState(null);
@@ -133,14 +132,7 @@ export default function ChatPage() {
               <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-200">
                 {current?.name || "Chat"}
               </span>
-              {current && (
-                <button
-                  onClick={() => dock(current.id)}
-                  className="hidden rounded border border-slate-200 px-2 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:bg-slate-50 sm:block dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
-                >
-                  Pop out
-                </button>
-              )}
+
             </header>
 
             {active ? (

@@ -1,137 +1,186 @@
 "use client";
 
-import { Minus, X, Hash } from "lucide-react";
+import { useEffect, useRef } from "react";
+import Link from "next/link";
+import { MessageCircle, Hash, X, ArrowLeft } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import { useConversation } from "@/lib/useConversation";
-import { useTasks } from "@/context/TaskContext";
 import ChatMessages, { initials, PresenceDot } from "@/components/ChatMessages";
 import ChatComposer from "@/components/ChatComposer";
-import MessagingMenu from "@/components/MessagingMenu";
 
 /**
- * Odoo-style docked conversations: small windows pinned to the bottom-right,
- * available from any page rather than only the Chat page.
+ * The floating chat widget: one bubble in the corner that expands into a
+ * single panel.
  *
- * Each window owns its own polling, so an open window keeps receiving while
- * you work elsewhere in the app.
+ * The panel shows either the list of conversations or one conversation, with
+ * a back arrow between them — a conversation opens inside the widget rather
+ * than as a separate window beside it, so there is only ever one floating
+ * thing on screen and the bubble's badge is the single place unread is
+ * reported.
  */
 export default function ChatDock() {
-  const { enabled, docked } = useChat();
-  // The launcher is always present once signed in, with or without open
-  // windows — it is how chat is reached from any page.
+  const { enabled, panelOpen, activeId, totalUnread, togglePanel, closePanel } = useChat();
+  const ref = useRef(null);
+
+  // Escape closes the panel; a click outside does not, so the panel survives
+  // working on the page behind it.
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") closePanel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [panelOpen, closePanel]);
+
   if (!enabled) return null;
 
-  // A phone has room for one conversation at a time, so only the most recently
-  // expanded one is shown there; the rest stay as collapsed title bars. On a
-  // wider screen they all sit side by side.
-  const lastExpandedId = [...docked].reverse().find((w) => !w.minimized)?.id ?? null;
-
   return (
-    // The launcher sits in the corner on phones, inset to match the create
-    // button above it so the two line up in a column.
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex flex-wrap items-end justify-end gap-2 p-2 pb-5 pr-5 sm:inset-x-auto sm:right-0 sm:flex-nowrap sm:gap-3 sm:p-3">
-      {docked.map((w) => (
-        <DockedWindow
-          key={w.id}
-          conversationId={w.id}
-          minimized={w.minimized}
-          // Collapsed bars are small enough to keep on a phone; a second
-          // expanded window is not.
-          hiddenOnMobile={!w.minimized && w.id !== lastExpandedId}
-        />
-      ))}
-      <MessagingMenu />
+    <div
+      ref={ref}
+      className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-2"
+    >
+      {panelOpen && (
+        <div className="flex h-[70vh] max-h-[32rem] w-[calc(100vw-2.5rem)] max-w-sm flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:w-80">
+          {activeId ? <ConversationView /> : <ConversationList />}
+        </div>
+      )}
+
+      <button
+        onClick={togglePanel}
+        aria-label={totalUnread > 0 ? `Messages (${totalUnread} unread)` : "Messages"}
+        aria-expanded={panelOpen}
+        className="relative flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white shadow-lg transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white"
+      >
+        {panelOpen ? <X size={20} /> : <MessageCircle size={20} />}
+        {totalUnread > 0 && !panelOpen && (
+          <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white ring-2 ring-white dark:ring-slate-900">
+            {totalUnread > 9 ? "9+" : totalUnread}
+          </span>
+        )}
+      </button>
     </div>
   );
 }
 
-function DockedWindow({ conversationId, minimized, hiddenOnMobile }) {
-  const { conversations, userId, members, serverNow, close, toggleMinimize, markRead } =
-    useChat();
-  const {
-    team: { orgName },
-  } = useTasks();
+function ConversationList() {
+  const { conversations, members, serverNow, open, closePanel } = useChat();
 
-  // A minimised window stops polling — it is closed for all practical purposes
-  // until reopened.
-  const { messages, sending, send } = useConversation(conversationId, {
-    active: !minimized,
+  // Unread first, then most recently active.
+  const ordered = [...conversations].sort((a, b) => {
+    if ((b.unread || 0) !== (a.unread || 0)) return (b.unread || 0) - (a.unread || 0);
+    return String(b.lastAt || "").localeCompare(String(a.lastAt || ""));
   });
 
-  const conversation = conversations.find((c) => c.id === conversationId);
-  const isRoom = conversation?.kind === "room";
-  const title = isRoom ? orgName || "Team" : conversation?.name || "Conversation";
+  return (
+    <>
+      <header className="flex items-center justify-between border-b border-slate-200 px-3 py-2.5 dark:border-slate-800">
+        <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+          Messages
+        </span>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/chat"
+            onClick={closePanel}
+            className="text-[11px] text-slate-500 transition-colors hover:underline dark:text-slate-400"
+          >
+            Open Chat →
+          </Link>
+        </div>
+      </header>
+
+      <div className="flex-1 overflow-y-auto">
+        {ordered.length === 0 && (
+          <p className="px-3 py-3 text-xs text-slate-400 dark:text-slate-500">
+            No conversations yet.
+          </p>
+        )}
+        {ordered.map((c) => {
+          const isRoom = c.kind === "room";
+          const person = c.withUserId ? members.find((m) => m.id === c.withUserId) : null;
+          return (
+            <button
+              key={c.id}
+              onClick={() => open(c.id)}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            >
+              {isRoom ? (
+                <Hash size={15} className="shrink-0 text-slate-400" />
+              ) : (
+                <span className="relative shrink-0">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                    {initials(c.name)}
+                  </span>
+                  <span className="absolute -bottom-0.5 -right-0.5">
+                    <PresenceDot lastSeenAt={person?.lastSeenAt} now={serverNow} />
+                  </span>
+                </span>
+              )}
+              <span
+                className={`min-w-0 flex-1 truncate text-sm ${
+                  c.unread > 0
+                    ? "font-semibold text-slate-900 dark:text-slate-100"
+                    : "text-slate-600 dark:text-slate-400"
+                }`}
+              >
+                {c.name}
+              </span>
+              {c.unread > 0 && (
+                <span className="shrink-0 rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
+                  {c.unread}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function ConversationView() {
+  const { activeId, conversations, members, serverNow, userId, back, closePanel, markRead } =
+    useChat();
+  const { messages, sending, send } = useConversation(activeId, { active: true });
+
+  const conversation = conversations.find((c) => c.id === activeId);
   const person = conversation?.withUserId
     ? members.find((m) => m.id === conversation.withUserId)
     : null;
 
   async function handleSend(body, attachment) {
     const ok = await send(body, attachment);
-    if (ok) markRead(conversationId);
+    if (ok) markRead(activeId);
     return ok;
   }
 
   return (
-    <div
-      className={`pointer-events-auto flex-col overflow-hidden rounded-t-lg border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900 ${
-        hiddenOnMobile ? "hidden sm:flex" : "flex"
-      } ${
-        minimized
-          ? // Collapsed: only as wide as its title, so several fit on a phone.
-            "w-auto max-w-[45vw] sm:w-72 sm:max-w-none"
-          : // Expanded: nearly the full width on a phone, a fixed panel above it.
-            "h-[70vh] w-[calc(100vw-1rem)] max-w-sm sm:h-96 sm:w-72 sm:max-w-none"
-      }`}
-    >
-      <header className="flex items-center gap-1.5 border-b border-slate-200 bg-slate-50 px-2.5 py-2 dark:border-slate-800 dark:bg-slate-800/60">
+    <>
+      <header className="flex items-center gap-1.5 border-b border-slate-200 px-2 py-2 dark:border-slate-800">
         <button
-          onClick={() => toggleMinimize(conversationId)}
-          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
-          aria-expanded={!minimized}
+          onClick={back}
+          aria-label="Back to conversations"
+          className="rounded p-1 text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
         >
-          {isRoom ? (
-            <Hash size={13} className="shrink-0 text-slate-400" />
-          ) : (
-            <span className="relative shrink-0">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[9px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                {initials(title)}
-              </span>
-              <span className="absolute -bottom-0.5 -right-0.5">
-                <PresenceDot lastSeenAt={person?.lastSeenAt} now={serverNow} />
-              </span>
-            </span>
-          )}
-          <span className="min-w-0 flex-1 truncate text-xs font-semibold text-slate-800 dark:text-slate-200">
-            {title}
-          </span>
-          {minimized && conversation?.unread > 0 && (
-            <span className="shrink-0 rounded-full bg-slate-900 px-1.5 py-0.5 text-[10px] font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
-              {conversation.unread}
-            </span>
-          )}
+          <ArrowLeft size={16} />
         </button>
+        {conversation?.kind === "dm" && (
+          <PresenceDot lastSeenAt={person?.lastSeenAt} now={serverNow} />
+        )}
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-800 dark:text-slate-200">
+          {conversation?.name || "Conversation"}
+        </span>
         <button
-          onClick={() => toggleMinimize(conversationId)}
-          aria-label={minimized ? "Expand conversation" : "Minimise conversation"}
-          className="rounded p-0.5 text-slate-400 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
+          onClick={closePanel}
+          aria-label="Close messages"
+          className="rounded p-1 text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
         >
-          <Minus size={13} />
-        </button>
-        <button
-          onClick={() => close(conversationId)}
-          aria-label="Close conversation"
-          className="rounded p-0.5 text-slate-400 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
-        >
-          <X size={13} />
+          <X size={15} />
         </button>
       </header>
 
-      {!minimized && (
-        <>
-          <ChatMessages messages={messages} currentUserId={userId} compact />
-          <ChatComposer onSend={handleSend} sending={sending} compact />
-        </>
-      )}
-    </div>
+      <ChatMessages messages={messages} currentUserId={userId} compact />
+      <ChatComposer onSend={handleSend} sending={sending} compact />
+    </>
   );
 }
