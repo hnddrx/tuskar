@@ -8,9 +8,30 @@
 // function of the requester's own user id and is re-checked on the server for
 // every read and write.
 
-export const ROOM_CONVERSATION = "room";
-
+const ROOM_PREFIX = "room:";
 const DM_PREFIX = "dm:";
+
+/**
+ * The id of a team's shared room.
+ *
+ * It names the organization because ids have to be globally unique: direct
+ * messages are not owned by a team, so a conversation id can no longer be
+ * read in the context of "the current org". A bare "room" would mean a
+ * different conversation to every team.
+ */
+export function roomConversationId(orgId) {
+  return `${ROOM_PREFIX}${orgId}`;
+}
+
+export function isRoomConversation(conversationId) {
+  return String(conversationId || "").startsWith(ROOM_PREFIX);
+}
+
+/** The organization a room belongs to, or null if this is not a room. */
+export function roomOrgId(conversationId) {
+  if (!isRoomConversation(conversationId)) return null;
+  return String(conversationId).slice(ROOM_PREFIX.length) || null;
+}
 
 /** The canonical id for a direct message between two people. */
 export function dmConversationId(a, b) {
@@ -33,14 +54,20 @@ export function dmParticipants(conversationId) {
 /**
  * Whether `userId` may read and write this conversation.
  *
- * The team room is open to anyone in the team (the caller has already been
- * checked as a member). A DM is open only to its participants — and only to a
- * well-formed pair, so appending yourself to someone else's id cannot let you
- * in.
+ * A room is open to members of the organization it names. A direct message is
+ * open to its participants and needs no organization at all — which is what
+ * lets a DM keep working when you switch teams or use a personal account.
+ * Ids are guessable by construction, so this is re-checked on the server for
+ * every read and write.
  */
-export function canAccessConversation(conversationId, userId) {
+export function canAccessConversation(conversationId, userId, orgIds = []) {
   if (!conversationId || !userId) return false;
-  if (conversationId === ROOM_CONVERSATION) return true;
+
+  if (isRoomConversation(conversationId)) {
+    const orgId = roomOrgId(conversationId);
+    return Boolean(orgId) && (orgIds || []).includes(orgId);
+  }
+
   if (!isDmConversation(conversationId)) return false;
 
   const participants = dmParticipants(conversationId);

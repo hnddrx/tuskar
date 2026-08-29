@@ -315,6 +315,57 @@ async function migrate() {
     )
   `;
 
+  // Direct messages belong to the two people, not to a team, so they keep
+  // working when you switch teams or use a personal account. That makes a
+  // conversation id stand alone, which in turn means a room id has to name its
+  // organization: a bare "room" meant a different conversation to every team.
+  await sql`alter table chat_messages alter column org_id drop not null`;
+  await sql`
+    update chat_messages set conversation_id = 'room:' || org_id
+    where conversation_id = 'room'
+  `;
+  await sql`update chat_messages set org_id = null where conversation_id like 'dm:%'`;
+
+  // Read state and presence were keyed by organization; neither is
+  // organization-scoped any more. Reshaped in place so existing read markers
+  // and heartbeats survive.
+  const [readsOrgColumn] = await sql`
+    select 1 from information_schema.columns
+    where table_name = 'chat_reads' and column_name = 'org_id'
+  `;
+  if (readsOrgColumn) {
+    await sql`
+      update chat_reads set conversation_id = 'room:' || org_id
+      where conversation_id = 'room'
+    `;
+    // Collapse rows that the reshape would turn into duplicate keys, keeping
+    // the most recent read marker.
+    await sql`
+      delete from chat_reads a using chat_reads b
+      where a.ctid < b.ctid and a.user_id = b.user_id
+        and a.conversation_id = b.conversation_id
+        and a.last_read_at <= b.last_read_at
+    `;
+    await sql`alter table chat_reads drop constraint if exists chat_reads_pkey`;
+    await sql`alter table chat_reads drop column org_id`;
+    await sql`alter table chat_reads add primary key (user_id, conversation_id)`;
+  }
+
+  const [presenceOrgColumn] = await sql`
+    select 1 from information_schema.columns
+    where table_name = 'chat_presence' and column_name = 'org_id'
+  `;
+  if (presenceOrgColumn) {
+    await sql`
+      delete from chat_presence a using chat_presence b
+      where a.ctid < b.ctid and a.user_id = b.user_id
+        and a.last_seen_at <= b.last_seen_at
+    `;
+    await sql`alter table chat_presence drop constraint if exists chat_presence_pkey`;
+    await sql`alter table chat_presence drop column org_id`;
+    await sql`alter table chat_presence add primary key (user_id)`;
+  }
+
   console.log(
     "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries, smtp_config, chat_messages, chat_reads, chat_presence ready."
   );

@@ -176,3 +176,47 @@ export function rowToTeamComment(row, membersById = {}) {
     syncSource: row.sync_source,
   };
 }
+
+/**
+ * Every organization a user belongs to.
+ *
+ * Access to a team room is decided by membership rather than by whichever
+ * team happens to be selected, so switching teams cannot open or close a
+ * conversation you were already in.
+ */
+export async function getUserOrgIds(userId) {
+  if (!userId) return [];
+  const clerk = await clerkClient();
+  const { data } = await clerk.users.getOrganizationMembershipList({
+    userId,
+    limit: 100,
+  });
+  return data.map((m) => m.organization?.id).filter(Boolean);
+}
+
+/** Everyone the user shares a team with, keyed by user id. */
+export async function getReachableMembers(userId) {
+  const orgIds = await getUserOrgIds(userId);
+  const clerk = await clerkClient();
+  const byId = new Map();
+
+  for (const orgId of orgIds) {
+    const { data } = await clerk.organizations.getOrganizationMembershipList({
+      organizationId: orgId,
+      limit: 100,
+    });
+    for (const m of data) {
+      const id = m.publicUserData?.userId;
+      if (!id || byId.has(id)) continue;
+      byId.set(id, {
+        id,
+        name:
+          [m.publicUserData.firstName, m.publicUserData.lastName].filter(Boolean).join(" ") ||
+          m.publicUserData.identifier ||
+          "Unknown",
+        email: m.publicUserData.identifier || null,
+      });
+    }
+  }
+  return { orgIds, members: [...byId.values()] };
+}

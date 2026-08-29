@@ -1,39 +1,32 @@
 import { auth } from "@clerk/nextjs/server";
 import { get } from "@vercel/blob";
-import { getSql } from "@/lib/db";
-import { canAccessConversation, dmParticipants, isDmConversation } from "@/lib/chat";
+import { getSql, getUserOrgIds } from "@/lib/db";
+import { canAccessConversation, isRoomConversation } from "@/lib/chat";
 import { dispositionFor } from "@/lib/attachments";
-import { getTeamMembersById } from "@/lib/db";
 
 /**
  * Streams a chat attachment back, but only to someone who can see the
  * conversation it was sent in.
  *
- * The blob itself is private and its path is never handed to the browser, so
- * this route is the only way to reach the file — which is why the same
- * conversation check the messages route uses is repeated here rather than
- * trusting that whoever has the message id was allowed to see it.
+ * The blob is private and its path never reaches the browser, so this route is
+ * the only way to the file — which is why the conversation check is repeated
+ * here rather than assuming whoever holds a message id was allowed to see it.
  */
 export async function GET(_request, { params }) {
-  const { userId, orgId } = await auth();
-  if (!orgId) return new Response("No active team", { status: 400 });
+  const { userId } = await auth();
+  if (!userId) return new Response("Not signed in", { status: 401 });
 
   const { id } = await params;
   const sql = getSql();
 
   const [row] = await sql`
-    select conversation_id, attachment from chat_messages
-    where id = ${id} and org_id = ${orgId}
+    select conversation_id, attachment from chat_messages where id = ${id}
   `;
   if (!row?.attachment) return new Response("Not found", { status: 404 });
 
-  if (!canAccessConversation(row.conversation_id, userId)) {
+  const orgIds = isRoomConversation(row.conversation_id) ? await getUserOrgIds(userId) : [];
+  if (!canAccessConversation(row.conversation_id, userId, orgIds)) {
     return new Response("Not found", { status: 404 });
-  }
-  if (isDmConversation(row.conversation_id)) {
-    const membersById = await getTeamMembersById(orgId);
-    const allMembers = dmParticipants(row.conversation_id).every((p) => p in membersById);
-    if (!allMembers) return new Response("Not found", { status: 404 });
   }
 
   const attachment = row.attachment;
@@ -45,8 +38,8 @@ export async function GET(_request, { params }) {
   return new Response(result.stream, {
     headers: {
       "Content-Type": attachment.contentType,
-      // Anything we do not render ourselves downloads rather than executing
-      // on this origin.
+      // Anything we do not render ourselves downloads rather than executing on
+      // this origin.
       "Content-Disposition": `${dispositionFor(attachment.kind)}; filename="${attachment.filename}"`,
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, max-age=3600",

@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useAuth } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 
 const ChatContext = createContext(null);
@@ -23,6 +24,11 @@ const DOCK_KEY = "taskar:chat-dock:v1";
 const MAX_DOCKED = 3;
 
 export function ChatProvider({ children }) {
+  // Chat follows the signed-in person, not the selected team: direct messages
+  // belong to the two people, so they must keep working on a personal account.
+  // The active team is still watched, because switching it can change which
+  // rooms and teammates you have.
+  const { isSignedIn } = useAuth();
   const {
     team: { orgId },
   } = useTasks();
@@ -47,7 +53,7 @@ export function ChatProvider({ children }) {
   }, [docked, hydrated]);
 
   const refresh = useCallback(async () => {
-    if (!orgId) return;
+    if (!isSignedIn) return;
     try {
       const res = await fetch("/api/chat/state");
       if (!res.ok) return;
@@ -55,14 +61,12 @@ export function ChatProvider({ children }) {
     } catch {
       /* a missed poll just leaves counts stale until the next one */
     }
-  }, [orgId]);
+  }, [isSignedIn]);
 
   // Poll only while the tab is visible — a backgrounded tab should neither
   // cost anything nor claim you are present.
   useEffect(() => {
-    if (!orgId) {
-      // Leaving a team must drop its conversations and unread counts rather
-      // than leaving another team's state on screen.
+    if (!isSignedIn) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setState(null);
       return;
@@ -85,14 +89,16 @@ export function ChatProvider({ children }) {
       }
     };
 
-    tick();
+    // Load once regardless of visibility, then poll only while visible.
+    refresh();
     start();
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       if (timer) clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [orgId, refresh]);
+    // orgId is a dependency so switching teams re-reads the conversation list.
+  }, [isSignedIn, orgId, refresh]);
 
   const markRead = useCallback(
     async (conversationId) => {
@@ -146,7 +152,7 @@ export function ChatProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      enabled: Boolean(orgId),
+      enabled: Boolean(isSignedIn),
       userId: state?.userId || null,
       serverNow: state?.now || null,
       members: state?.members || [],
@@ -160,7 +166,7 @@ export function ChatProvider({ children }) {
       refresh,
     }),
     [
-      orgId,
+      isSignedIn,
       state,
       conversations,
       totalUnread,

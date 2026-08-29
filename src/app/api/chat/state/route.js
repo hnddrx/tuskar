@@ -1,38 +1,53 @@
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { getSql } from "@/lib/db";
-import { ROOM_CONVERSATION, dmConversationId, canAccessConversation } from "@/lib/chat";
+import { getSql, getReachableMembers } from "@/lib/db";
+import { roomConversationId, dmConversationId, canAccessConversation } from "@/lib/chat";
 import { nowIso } from "@/lib/id";
 
 /**
- * Everything the chat sidebar needs: the team's members, and the unread count
- * plus latest activity for each conversation the caller can see.
+ * The chat sidebar: a room for every team you belong to, a direct message with
+ * everyone you share a team with, and any DM you already have with someone you
+ * no longer do.
  *
- * The conversation list is built from the caller's own id, so it can only ever
- * contain the team room and their own DMs — there is no way to ask for
- * someone else's.
+ * Deliberately does not require an active team. Direct messages belong to the
+ * two people rather than to an organization, so they must keep working when you
+ * switch teams or use a personal account.
  */
 export async function GET() {
-  const { userId, orgId } = await auth();
-  if (!orgId) return Response.json({ error: "No active team" }, { status: 400 });
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: "Not signed in" }, { status: 401 });
 
   const clerk = await clerkClient();
-  const { data } = await clerk.organizations.getOrganizationMembershipList({
-    organizationId: orgId,
-    limit: 100,
-  });
+  const { orgIds, members } = await getReachableMembers(userId);
 
-  const members = data
-    .map((m) => ({
-      id: m.publicUserData?.userId,
-      name:
-        [m.publicUserData?.firstName, m.publicUserData?.lastName].filter(Boolean).join(" ") ||
-        m.publicUserData?.identifier ||
-        "Unknown",
-    }))
-    .filter((m) => m.id);
+  const orgs = await Promise.all(
+    orgIds.map(async (id) => {
+      try {
+        const org = await clerk.organizations.getOrganization({ organizationId: id });
+        return { id, name: org.name };
+      } catch {
+        return { id, name: "Team" };
+      }
+    })
+  );
+
+  const sql = getSql();
+
+  // Reading the sidebar is itself the heartbeat: if you are looking at the app
+  // you are present, so there is no separate ping to keep alive.
+  const seenAt = nowIso();
+  await sql`
+    insert into chat_presence (user_id, last_seen_at)
+    values (${userId}, ${seenAt})
+    on conflict (user_id) do update set last_seen_at = excluded.last_seen_at
+  `;
 
   const conversations = [
-    { id: ROOM_CONVERSATION, kind: "room" },
+    ...orgs.map((o) => ({
+      id: roomConversationId(o.id),
+      kind: "room",
+      name: o.name,
+      orgId: o.id,
+    })),
     ...members
       .filter((m) => m.id !== userId)
       .map((m) => ({
@@ -40,60 +55,65 @@ export async function GET() {
         kind: "dm",
         withUserId: m.id,
         name: m.name,
+        email: m.email,
       })),
   ];
 
-  const sql = getSql();
+  // DMs already under way with someone outside your teams — reached by email,
+  // or a former teammate — so an existing conversation never disappears.
+  const existing = await sql`
+    select distinct conversation_id from chat_messages
+    where conversation_id like 'dm:%' and conversation_id like ${"%" + userId + "%"}
+  `;
+  const listed = new Set(conversations.map((c) => c.id));
+  for (const row of existing) {
+    if (listed.has(row.conversation_id)) continue;
+    if (!canAccessConversation(row.conversation_id, userId, orgIds)) continue;
+    conversations.push({
+      id: row.conversation_id,
+      kind: "dm",
+      withUserId: null,
+      name: "Direct message",
+    });
+  }
+
   const ids = conversations.map((c) => c.id);
 
-  // Reading the sidebar is itself the heartbeat: if you are looking at the
-  // app you are present, so there is no separate ping to keep alive.
-  const seenAt = nowIso();
-  await sql`
-    insert into chat_presence (user_id, org_id, last_seen_at)
-    values (${userId}, ${orgId}, ${seenAt})
-    on conflict (user_id, org_id) do update set last_seen_at = excluded.last_seen_at
-  `;
-
   const presenceRows = await sql`
-    select user_id, last_seen_at from chat_presence where org_id = ${orgId}
+    select user_id, last_seen_at from chat_presence
+    where user_id = any(${members.map((m) => m.id)}::text[])
   `;
-  const lastSeenBy = Object.fromEntries(
-    presenceRows.map((r) => [r.user_id, r.last_seen_at])
-  );
+  const lastSeenBy = Object.fromEntries(presenceRows.map((r) => [r.user_id, r.last_seen_at]));
 
   const reads = await sql`
     select conversation_id, last_read_at from chat_reads
-    where user_id = ${userId} and org_id = ${orgId}
-      and conversation_id = any(${ids}::text[])
+    where user_id = ${userId} and conversation_id = any(${ids}::text[])
   `;
-  const lastReadBy = Object.fromEntries(
-    reads.map((r) => [r.conversation_id, r.last_read_at])
-  );
+  const lastReadBy = Object.fromEntries(reads.map((r) => [r.conversation_id, r.last_read_at]));
 
-  // Unread is counted in the database rather than by shipping every message
-  // to the client and counting there.
+  // Unread is counted in the database rather than by shipping every message to
+  // the client and counting there.
   const counts = await sql`
     select conversation_id,
            count(*) filter (
              where author_user_id <> ${userId}
                and created_at > coalesce((
                  select last_read_at from chat_reads r
-                 where r.user_id = ${userId} and r.org_id = ${orgId}
+                 where r.user_id = ${userId}
                    and r.conversation_id = chat_messages.conversation_id
                ), '')
            )::int as unread,
            max(created_at) as last_at
     from chat_messages
-    where org_id = ${orgId} and conversation_id = any(${ids}::text[])
+    where conversation_id = any(${ids}::text[])
     group by conversation_id
   `;
   const statsBy = Object.fromEntries(counts.map((c) => [c.conversation_id, c]));
 
   return Response.json({
     userId,
-    // `now` is the server's clock, so a client with a wrong clock cannot
-    // decide everyone is offline.
+    // The server's clock, so a client with a wrong one cannot decide the whole
+    // team is offline.
     now: seenAt,
     members: members.map((m) => ({ ...m, lastSeenAt: lastSeenBy[m.id] || null })),
     conversations: conversations.map((c) => ({
@@ -107,19 +127,20 @@ export async function GET() {
 
 /** Marks a conversation read up to now. */
 export async function POST(request) {
-  const { userId, orgId } = await auth();
-  if (!orgId) return Response.json({ error: "No active team" }, { status: 400 });
+  const { userId } = await auth();
+  if (!userId) return Response.json({ error: "Not signed in" }, { status: 401 });
 
   const { conversationId } = await request.json();
-  if (!canAccessConversation(conversationId, userId)) {
+  const { orgIds } = await getReachableMembers(userId);
+  if (!canAccessConversation(conversationId, userId, orgIds)) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
   const sql = getSql();
   await sql`
-    insert into chat_reads (user_id, org_id, conversation_id, last_read_at)
-    values (${userId}, ${orgId}, ${conversationId}, ${nowIso()})
-    on conflict (user_id, org_id, conversation_id)
+    insert into chat_reads (user_id, conversation_id, last_read_at)
+    values (${userId}, ${conversationId}, ${nowIso()})
+    on conflict (user_id, conversation_id)
       do update set last_read_at = excluded.last_read_at
   `;
 

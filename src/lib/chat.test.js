@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  ROOM_CONVERSATION,
+  roomConversationId,
+  roomOrgId,
+  isRoomConversation,
   dmConversationId,
   isDmConversation,
   dmParticipants,
@@ -15,9 +17,14 @@ import {
 
 // --- conversation ids ------------------------------------------------------
 
-test("the team room has one well-known id", () => {
-  assert.equal(ROOM_CONVERSATION, "room");
-  assert.equal(isDmConversation(ROOM_CONVERSATION), false);
+test("a team room id names its organization, so two teams cannot collide", () => {
+  assert.equal(roomConversationId("org_a"), "room:org_a");
+  assert.notEqual(roomConversationId("org_a"), roomConversationId("org_b"));
+});
+
+test("a room id reports the organization it belongs to", () => {
+  assert.equal(roomOrgId("room:org_a"), "org_a");
+  assert.equal(roomOrgId("dm:user_a|user_b"), null);
 });
 
 test("a direct message id is the two user ids, sorted", () => {
@@ -32,47 +39,66 @@ test("a note to self collapses to a single participant", () => {
   assert.equal(dmConversationId("user_a", "user_a"), "dm:user_a");
 });
 
-test("a direct message id is recognised as one", () => {
+test("the two kinds of conversation are told apart", () => {
   assert.equal(isDmConversation("dm:user_a|user_b"), true);
-  assert.equal(isDmConversation("something-else"), false);
+  assert.equal(isDmConversation("room:org_a"), false);
+  assert.equal(isRoomConversation("room:org_a"), true);
+  assert.equal(isRoomConversation("dm:user_a|user_b"), false);
 });
 
 test("participants can be read back out of the id", () => {
   assert.deepEqual(dmParticipants("dm:user_a|user_b"), ["user_a", "user_b"]);
-  assert.deepEqual(dmParticipants(ROOM_CONVERSATION), []);
+  assert.deepEqual(dmParticipants("room:org_a"), []);
 });
 
 // --- access control --------------------------------------------------------
 
-test("anyone on the team can use the team room", () => {
-  assert.equal(canAccessConversation(ROOM_CONVERSATION, "user_anyone"), true);
+const inOrgA = { userId: "user_a", orgIds: ["org_a"] };
+
+test("a member of the team can use its room", () => {
+  assert.equal(canAccessConversation("room:org_a", inOrgA.userId, inOrgA.orgIds), true);
 });
 
-test("a participant can access their own direct messages", () => {
-  assert.equal(canAccessConversation("dm:user_a|user_b", "user_a"), true);
-  assert.equal(canAccessConversation("dm:user_a|user_b", "user_b"), true);
+test("another team's room is closed even to a signed-in user", () => {
+  assert.equal(canAccessConversation("room:org_b", inOrgA.userId, inOrgA.orgIds), false);
 });
 
-test("someone else's direct messages are not accessible by guessing the id", () => {
-  assert.equal(canAccessConversation("dm:user_a|user_b", "user_c"), false);
+test("a room is closed to someone in no teams at all", () => {
+  assert.equal(canAccessConversation("room:org_a", "user_a", []), false);
+});
+
+test("a direct message needs no team at all", () => {
+  // This is the point of the change: DMs belong to the two people, so they
+  // keep working on a Personal account.
+  assert.equal(canAccessConversation("dm:user_a|user_b", "user_a", []), true);
+  assert.equal(canAccessConversation("dm:user_a|user_b", "user_b", []), true);
+});
+
+test("someone else's direct messages stay closed however many teams you are in", () => {
+  assert.equal(canAccessConversation("dm:user_a|user_b", "user_c", ["org_a", "org_b"]), false);
 });
 
 test("a malformed conversation id grants no access", () => {
-  assert.equal(canAccessConversation("dm:", "user_a"), false);
-  assert.equal(canAccessConversation("", "user_a"), false);
-  assert.equal(canAccessConversation(null, "user_a"), false);
-  assert.equal(canAccessConversation("dm:user_a|user_b", null), false);
+  assert.equal(canAccessConversation("dm:", "user_a", []), false);
+  assert.equal(canAccessConversation("room:", "user_a", ["org_a"]), false);
+  assert.equal(canAccessConversation("", "user_a", []), false);
+  assert.equal(canAccessConversation(null, "user_a", []), false);
+  assert.equal(canAccessConversation("dm:user_a|user_b", null, []), false);
+});
+
+test("an unprefixed id is not a conversation at all", () => {
+  // "room" alone used to be the team room; it must no longer open anything.
+  assert.equal(canAccessConversation("room", "user_a", ["org_a"]), false);
 });
 
 test("a conversation id cannot be widened by adding participants", () => {
-  // Someone appending themselves must not gain access to an existing pair.
-  assert.equal(canAccessConversation("dm:user_a|user_b|user_c", "user_c"), false);
+  assert.equal(canAccessConversation("dm:user_a|user_b|user_c", "user_c", []), false);
 });
 
 test("the other person in a direct message is identified", () => {
   assert.equal(otherParticipant("dm:user_a|user_b", "user_a"), "user_b");
   assert.equal(otherParticipant("dm:user_a", "user_a"), "user_a");
-  assert.equal(otherParticipant(ROOM_CONVERSATION, "user_a"), null);
+  assert.equal(otherParticipant("room:org_a", "user_a"), null);
 });
 
 // --- unread ----------------------------------------------------------------
