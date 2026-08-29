@@ -117,3 +117,45 @@ export async function hasStoredPassword(userId) {
   `;
   return Boolean(row?.password_enc);
 }
+
+// Admins first: when a team has several people with a mail server saved, the
+// invitation should go out through an admin's rather than an arbitrary
+// member's.
+function roleRank(role) {
+  return String(role || "").includes("admin") ? 0 : 1;
+}
+
+/**
+ * The mail server to send a team's own email through.
+ *
+ * A webhook has no signed-in user, but SMTP settings are per person — so the
+ * sender is resolved from the organization: its members are read from Clerk,
+ * admins first, and the first one with a configured mail server is used.
+ * Returns null when nobody in the team has set one up.
+ */
+export async function getSmtpConfigForOrg(orgId) {
+  if (!orgId) return null;
+
+  const { clerkClient } = await import("@clerk/nextjs/server");
+  const clerk = await clerkClient();
+  const { data } = await clerk.organizations.getOrganizationMembershipList({
+    organizationId: orgId,
+    limit: 100,
+  });
+
+  const candidates = [...data]
+    .sort((a, b) => roleRank(a.role) - roleRank(b.role))
+    .map((m) => m.publicUserData?.userId)
+    .filter(Boolean);
+  if (candidates.length === 0) return null;
+
+  const sql = getSql();
+  const rows = await sql`
+    select user_id from smtp_config
+    where user_id = any(${candidates}::text[]) and host <> '' and from_email <> ''
+  `;
+  const configured = new Set(rows.map((r) => r.user_id));
+
+  const senderId = candidates.find((id) => configured.has(id));
+  return senderId ? getSmtpConfig(senderId) : null;
+}
