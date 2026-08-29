@@ -84,7 +84,7 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-slate-900/40 sm:items-center sm:p-4">
-      <div className="flex h-full w-full flex-col overflow-y-auto bg-white shadow-xl dark:bg-slate-900 sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:rounded-xl">
+      <div className="flex h-full w-full flex-col overflow-y-auto bg-white shadow-xl dark:bg-slate-900 sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
             {isEdit ? `Edit ${task.ticketId}` : "New team task"}
@@ -112,7 +112,7 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 [&>*]:min-w-0">
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 Ticket ID
@@ -158,7 +158,7 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
             </select>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 [&>*]:min-w-0">
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 Status
@@ -199,7 +199,7 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 [&>*]:min-w-0">
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 Start date
@@ -266,7 +266,7 @@ export default function TeamTaskFormModal({ open, onClose, task = null }) {
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 [&>*]:min-w-0">
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">
                 GitHub branch

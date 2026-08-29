@@ -12,7 +12,9 @@ import {
   ArrowDown,
   ArrowUpDown,
 } from "lucide-react";
+import { useAuth } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
+import ScopeBadge from "@/components/ScopeBadge";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/Badge";
 import { ProgressBar } from "@/components/ProgressBar";
@@ -70,15 +72,20 @@ const CELL_DEFS = {
   },
   name: {
     className: "max-w-xs px-4 py-2.5",
-    render: (t, { parent, taskHref }) => (
+    render: (t, { parent, taskHref, teamName }) => (
       <>
         <Link
-          href={taskHref(t.id)}
+          href={taskHref(t.id, t.scope)}
           className="block truncate font-medium text-slate-800 hover:underline transition-colors dark:text-slate-200"
           title={t.name}
         >
           {t.name}
         </Link>
+        {t.scope === "team" && (
+          <span className="mt-0.5 inline-block">
+            <ScopeBadge scope="team" teamName={teamName} />
+          </span>
+        )}
         {parent && (
           <span className="text-xs text-slate-400 dark:text-slate-500">↳ subtask of {parent.ticketId}</span>
         )}
@@ -91,11 +98,14 @@ const CELL_DEFS = {
   },
   status: {
     className: "px-4 py-2.5",
-    render: (t, { openEdit }) => (
-      <button onClick={() => openEdit(t)}>
+    render: (t, { openEdit }) =>
+      t.scope === "team" ? (
         <StatusBadge status={t.status} />
-      </button>
-    ),
+      ) : (
+        <button onClick={() => openEdit(t)}>
+          <StatusBadge status={t.status} />
+        </button>
+      ),
   },
   priority: {
     className: "px-4 py-2.5",
@@ -130,7 +140,7 @@ const CELL_DEFS = {
     render: (t, { taskHref }) =>
       t.noteCount ? (
         <Link
-          href={`${taskHref(t.id)}#notes`}
+          href={`${taskHref(t.id, t.scope)}#notes`}
           className="rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
           title={`${t.noteCount} linked note${t.noteCount === 1 ? "" : "s"}`}
         >
@@ -249,8 +259,10 @@ export default function TasksPage() {
 function TasksPageInner() {
   const {
     personal: { tasks: rawTasks, comments, notes, config, deleteTask },
+    team: { tasks: teamTasks, orgName },
     time: { entries: timeEntries },
   } = useTasks();
+  const { userId } = useAuth();
   // A coarse tick: enough to keep a running timer's column roughly current
   // without re-rendering the whole table every second.
   const timeNow = useNow(60000);
@@ -264,18 +276,40 @@ function TasksPageInner() {
   // Notes carry the link (notes.linkedTaskId), so the count has to be
   // rolled up from their side. Folding it onto the task means the Notes
   // column sorts through the same numeric path as Comments.
+  // Team tasks assigned to me appear here too, so "My Tasks" means everything
+  // on my plate rather than just my personal board. They stay marked as team
+  // work: a badge in the table, links into the team pages, and no personal
+  // edit/delete controls (those mutators are scoped to personal tasks and
+  // would silently do nothing).
+  const assignedTeamTasks = useMemo(
+    () =>
+      (teamTasks || [])
+        .filter((t) => (t.assigneeIds || []).includes(userId))
+        .map((t) => ({
+          ...t,
+          scope: "team",
+          // The table renders a single assignee string; a team task carries a
+          // resolved list instead.
+          assignee: (t.assignees || []).map((a) => a.name).join(", ") || "Unassigned",
+        })),
+    [teamTasks, userId]
+  );
+
   const tasks = useMemo(() => {
     const counts = new Map();
     for (const note of notes) {
       if (!note.linkedTaskId) continue;
       counts.set(note.linkedTaskId, (counts.get(note.linkedTaskId) || 0) + 1);
     }
-    return rawTasks.map((t) => ({
+    return [
+      ...rawTasks.map((t) => ({ ...t, scope: "personal" })),
+      ...assignedTeamTasks,
+    ].map((t) => ({
       ...t,
       noteCount: counts.get(t.id) || 0,
       trackedSeconds: totalForTask(timeEntries, t.id, timeNow),
     }));
-  }, [rawTasks, notes, timeEntries, timeNow]);
+  }, [rawTasks, assignedTeamTasks, notes, timeEntries, timeNow]);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -296,8 +330,9 @@ function TasksPageInner() {
     from: listSearch ? `/tasks?${listSearch}` : "/tasks",
     fromLabel: "My Tasks",
   }).toString();
-  function taskHref(id) {
-    return `/tasks/${id}?${fromParams}`;
+  function taskHref(id, scope) {
+    const base = scope === "team" ? "/team/tasks" : "/tasks";
+    return `${base}/${id}?${fromParams}`;
   }
 
   // Load/persist the chosen optional columns per-browser, same pattern as
@@ -537,11 +572,20 @@ function TasksPageInner() {
                   >
                     {columns.map((col) => (
                       <td key={col.key} className={CELL_DEFS[col.key].className}>
-                        {CELL_DEFS[col.key].render(t, { parent, openEdit, taskHref })}
+                        {CELL_DEFS[col.key].render(t, { parent, openEdit, taskHref, teamName: orgName })}
                       </td>
                     ))}
                     <td className="px-4 py-2.5 text-right">
                       <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100">
+                        {t.scope === "team" ? (
+                          <Link
+                            href={taskHref(t.id, t.scope)}
+                            className="rounded px-2 py-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                          >
+                            Open
+                          </Link>
+                        ) : (
+                          <>
                         <button
                           onClick={() => openEdit(t)}
                           className="rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 transition-colors dark:text-slate-400 dark:hover:bg-slate-800"
@@ -562,6 +606,8 @@ function TasksPageInner() {
                         >
                           <Trash2 size={14} />
                         </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -588,7 +634,7 @@ function TasksPageInner() {
             return (
               <Link
                 key={t.id}
-                href={taskHref(t.id)}
+                href={taskHref(t.id, t.scope)}
                 className="block rounded-xl border border-slate-200 bg-white shadow-sm dark:shadow-none p-3.5 dark:border-slate-800 dark:bg-slate-900"
               >
                 <div className="mb-1.5 flex items-center justify-between gap-2">
