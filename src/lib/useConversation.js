@@ -1,17 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { mergeMessages, nextCursor } from "@/lib/chat";
 
 // One conversation's messages, polled with a cursor so each request carries
-// only what is new. Shared by the Chat page and every docked window, so a
-// window and the full page behave identically.
+// only what has changed. Shared by the Chat page and the docked panel, so the
+// two behave identically.
 const POLL_MS = 4000;
 
 export function useConversation(conversationId, { active = true } = {}) {
   const [messages, setMessages] = useState([]);
   const [error, setError] = useState(null);
   const [sending, setSending] = useState(false);
-  // The newest message already held, so a poll asks only for what follows it.
+  // How far this client has caught up. It tracks the newest *change*, not the
+  // newest message, so an edit or a delete to something older still arrives.
   const cursorRef = useRef(null);
 
   const load = useCallback(
@@ -28,15 +30,11 @@ export function useConversation(conversationId, { active = true } = {}) {
           return;
         }
         const batch = await res.json();
-        if (batch.length > 0) cursorRef.current = batch[batch.length - 1].createdAt;
+        cursorRef.current = nextCursor(batch, reset ? null : cursorRef.current);
 
-        setMessages((prev) => {
-          if (reset) return batch;
-          if (batch.length === 0) return prev;
-          // A message sent from this tab arrives again from the server.
-          const seen = new Set(prev.map((m) => m.id));
-          return [...prev, ...batch.filter((m) => !seen.has(m.id))];
-        });
+        // Merged by id: a batch is what has changed, so an edited message
+        // arrives again and replaces the copy on screen instead of doubling.
+        setMessages((prev) => mergeMessages(reset ? [] : prev, batch));
       } catch {
         /* a missed poll is corrected by the next one */
       }
@@ -82,8 +80,15 @@ export function useConversation(conversationId, { active = true } = {}) {
     };
   }, [active, conversationId, load]);
 
+  // Folds a message the server just handed back into what is on screen, and
+  // moves the cursor past it so the next poll does not fetch it again.
+  const absorb = useCallback((saved) => {
+    cursorRef.current = nextCursor([saved], cursorRef.current);
+    setMessages((prev) => mergeMessages(prev, [saved]));
+  }, []);
+
   const send = useCallback(
-    async (body, attachment = null) => {
+    async (body, attachment = null, { replyToId = null } = {}) => {
       const text = String(body || "").trim();
       if ((!text && !attachment) || sending) return false;
       setSending(true);
@@ -92,12 +97,10 @@ export function useConversation(conversationId, { active = true } = {}) {
         const res = await fetch("/api/chat/messages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ conversationId, body: text, attachment }),
+          body: JSON.stringify({ conversationId, body: text, attachment, replyToId }),
         });
         if (!res.ok) throw new Error("Message not sent");
-        const saved = await res.json();
-        cursorRef.current = saved.createdAt;
-        setMessages((prev) => [...prev, saved]);
+        absorb(await res.json());
         return true;
       } catch (err) {
         setError(err.message || "Message not sent");
@@ -106,8 +109,74 @@ export function useConversation(conversationId, { active = true } = {}) {
         setSending(false);
       }
     },
-    [conversationId, sending]
+    [conversationId, sending, absorb]
   );
 
-  return { messages, error, sending, send, reload: () => load({ reset: true }) };
+  const edit = useCallback(
+    async (id, body) => {
+      const text = String(body || "").trim();
+      if (!text) return false;
+      try {
+        const res = await fetch(`/api/chat/messages/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body: text }),
+        });
+        if (!res.ok) throw new Error("Couldn't save that edit");
+        absorb(await res.json());
+        return true;
+      } catch (err) {
+        setError(err.message || "Couldn't save that edit");
+        return false;
+      }
+    },
+    [absorb]
+  );
+
+  const remove = useCallback(
+    async (id) => {
+      try {
+        const res = await fetch(`/api/chat/messages/${id}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("Couldn't delete that message");
+        absorb(await res.json());
+        return true;
+      } catch (err) {
+        setError(err.message || "Couldn't delete that message");
+        return false;
+      }
+    },
+    [absorb]
+  );
+
+  /**
+   * Copies a message into another conversation. The copy lands there rather
+   * than here, so nothing is folded into this view — only the failure is
+   * worth reporting back.
+   */
+  const forward = useCallback(async (messageId, toConversationId) => {
+    if (!messageId || !toConversationId) return false;
+    try {
+      const res = await fetch("/api/chat/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: toConversationId, forwardOf: messageId }),
+      });
+      if (!res.ok) throw new Error("Couldn't forward that message");
+      return true;
+    } catch (err) {
+      setError(err.message || "Couldn't forward that message");
+      return false;
+    }
+  }, []);
+
+  return {
+    messages,
+    error,
+    sending,
+    send,
+    edit,
+    remove,
+    forward,
+    reload: () => load({ reset: true }),
+  };
 }

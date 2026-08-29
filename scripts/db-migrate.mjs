@@ -293,6 +293,30 @@ async function migrate() {
   // A file sent with a message, stored the same way note attachments are.
   await sql`alter table chat_messages add column if not exists attachment jsonb`;
 
+  // Replying, editing, forwarding and deleting.
+  //
+  // `updated_at` is what makes the last three visible to anyone else: clients
+  // poll for "everything since a cursor", and an edit or a delete does not
+  // move `created_at`, so without a separate stamp the change would only ever
+  // be seen by the person who made it. Existing rows are backfilled from
+  // `created_at` so the cursor is never null.
+  await sql`alter table chat_messages add column if not exists reply_to_id text`;
+  await sql`alter table chat_messages add column if not exists forwarded_from_id text`;
+  await sql`alter table chat_messages add column if not exists edited_at text`;
+  // Deleting is a tombstone, not a row removal: a reply that quotes a deleted
+  // message still has something to point at, and the body and attachment are
+  // cleared so neither can be read afterwards.
+  await sql`alter table chat_messages add column if not exists deleted_at text`;
+  await sql`alter table chat_messages add column if not exists updated_at text`;
+  await sql`update chat_messages set updated_at = created_at where updated_at is null`;
+
+  // Polls read "this conversation, changed since a cursor", which is a
+  // different order from the initial "newest first" read above.
+  await sql`
+    create index if not exists chat_messages_updated_idx
+    on chat_messages (conversation_id, updated_at)
+  `;
+
   // Presence is a heartbeat, not a socket: each client stamps its last-seen
   // time while its tab is visible, and status is derived from how stale that
   // is (see lib/chat.js).

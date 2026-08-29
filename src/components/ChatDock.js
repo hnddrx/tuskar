@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MessageCircle, Hash, X, ArrowLeft } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
 import { useConversation } from "@/lib/useConversation";
 import ChatMessages, { initials, PresenceDot } from "@/components/ChatMessages";
 import ChatComposer from "@/components/ChatComposer";
+import ForwardMessageDialog from "@/components/ForwardMessageDialog";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 /**
  * The floating chat widget: one bubble in the corner that expands into a
@@ -42,7 +44,7 @@ export default function ChatDock() {
     >
       {panelOpen && (
         <div className="flex h-[70vh] max-h-[32rem] w-[calc(100vw-2.5rem)] max-w-sm flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:w-80">
-          {activeId ? <ConversationView /> : <ConversationList />}
+          {activeId ? <ConversationView key={activeId} /> : <ConversationList />}
         </div>
       )}
 
@@ -141,17 +143,32 @@ function ConversationList() {
 function ConversationView() {
   const { activeId, conversations, members, serverNow, userId, back, closePanel, markRead } =
     useChat();
-  const { messages, sending, send } = useConversation(activeId, { active: true });
+  const { messages, sending, send, edit, remove, forward } = useConversation(activeId, {
+    active: true,
+  });
+  const confirm = useConfirm();
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [forwarding, setForwarding] = useState(null);
 
   const conversation = conversations.find((c) => c.id === activeId);
   const person = conversation?.withUserId
     ? members.find((m) => m.id === conversation.withUserId)
     : null;
 
-  async function handleSend(body, attachment) {
-    const ok = await send(body, attachment);
+  async function handleSend(body, attachment, options) {
+    const ok = await send(body, attachment, options);
     if (ok) markRead(activeId);
     return ok;
+  }
+
+  async function handleDelete(message) {
+    const yes = await confirm({
+      title: "Delete this message?",
+      message: "It will show as deleted for everyone in this conversation.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (yes) remove(message.id);
   }
 
   return (
@@ -179,8 +196,30 @@ function ConversationView() {
         </button>
       </header>
 
-      <ChatMessages messages={messages} currentUserId={userId} compact />
-      <ChatComposer onSend={handleSend} sending={sending} compact />
+      <ChatMessages
+        messages={messages}
+        currentUserId={userId}
+        compact
+        onReply={setReplyingTo}
+        onEdit={edit}
+        onForward={setForwarding}
+        onDelete={handleDelete}
+      />
+      <ChatComposer
+        onSend={handleSend}
+        sending={sending}
+        compact
+        replyingTo={replyingTo}
+        onCancelReply={() => setReplyingTo(null)}
+      />
+
+      {forwarding && (
+        <ForwardMessageDialog
+          message={forwarding}
+          onClose={() => setForwarding(null)}
+          onForward={forward}
+        />
+      )}
     </>
   );
 }

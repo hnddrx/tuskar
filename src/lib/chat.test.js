@@ -13,6 +13,10 @@ import {
   unreadCount,
   groupMessages,
   presenceStatus,
+  canModifyMessage,
+  messageSnippet,
+  mergeMessages,
+  nextCursor,
 } from "./chat.js";
 
 // --- conversation ids ------------------------------------------------------
@@ -204,4 +208,69 @@ test("a nonsense timestamp is offline rather than throwing", () => {
 test("a clock skew putting someone in the future still reads as online", () => {
   const now = "2026-08-29T10:00:00.000Z";
   assert.equal(presenceStatus("2026-08-29T10:00:30.000Z", now), "online");
+});
+
+test("only the author can change a message, and never a deleted one", () => {
+  const mine = { id: "m1", authorUserId: "u1", body: "hi" };
+  assert.equal(canModifyMessage(mine, "u1"), true);
+  assert.equal(canModifyMessage(mine, "u2"), false);
+  assert.equal(canModifyMessage({ ...mine, deletedAt: "2026-01-01" }, "u1"), false);
+  assert.equal(canModifyMessage(null, "u1"), false);
+  assert.equal(canModifyMessage(mine, null), false);
+});
+
+test("a snippet falls back to the filename when a message is only a file", () => {
+  assert.equal(messageSnippet({ body: "  hello   there " }), "hello there");
+  assert.equal(messageSnippet({ body: "", attachment: { filename: "plan.pdf" } }), "plan.pdf");
+  assert.equal(messageSnippet({ body: "x", deletedAt: "2026-01-01" }), "Message deleted");
+  assert.equal(messageSnippet({ body: "" }), "");
+  assert.equal(messageSnippet(null), "");
+
+  const long = "a".repeat(200);
+  const snippet = messageSnippet({ body: long });
+  assert.equal(snippet.length, 120);
+  assert.ok(snippet.endsWith("…"));
+});
+
+test("a polled change replaces the message on screen instead of duplicating it", () => {
+  const existing = [
+    { id: "m1", createdAt: "2026-01-01T10:00:00Z", body: "first" },
+    { id: "m2", createdAt: "2026-01-01T10:01:00Z", body: "second" },
+  ];
+  // m1 was edited, m3 is new.
+  const merged = mergeMessages(existing, [
+    { id: "m1", createdAt: "2026-01-01T10:00:00Z", body: "first (fixed)" },
+    { id: "m3", createdAt: "2026-01-01T10:02:00Z", body: "third" },
+  ]);
+
+  assert.deepEqual(merged.map((m) => m.id), ["m1", "m2", "m3"]);
+  assert.equal(merged[0].body, "first (fixed)");
+});
+
+test("merging keeps send order, not the order changes arrived in", () => {
+  const merged = mergeMessages(
+    [{ id: "m2", createdAt: "2026-01-01T10:05:00Z" }],
+    [{ id: "m1", createdAt: "2026-01-01T10:00:00Z" }],
+  );
+  assert.deepEqual(merged.map((m) => m.id), ["m1", "m2"]);
+});
+
+test("the cursor tracks the newest change, not the newest message", () => {
+  // An old message edited just now must move the cursor, or the next poll
+  // would ask for changes after a point that has already passed.
+  const messages = [
+    { id: "m1", createdAt: "2026-01-01T10:00:00Z", updatedAt: "2026-01-02T09:00:00Z" },
+    { id: "m2", createdAt: "2026-01-01T10:05:00Z", updatedAt: "2026-01-01T10:05:00Z" },
+  ];
+  assert.equal(nextCursor(messages), "2026-01-02T09:00:00Z");
+  // A cursor already ahead of the batch is not walked backwards.
+  assert.equal(nextCursor(messages, "2026-02-01T00:00:00Z"), "2026-02-01T00:00:00Z");
+  assert.equal(nextCursor([], null), null);
+});
+
+test("a message with no updatedAt still moves the cursor by its send time", () => {
+  assert.equal(
+    nextCursor([{ id: "m1", createdAt: "2026-01-01T10:00:00Z" }]),
+    "2026-01-01T10:00:00Z",
+  );
 });

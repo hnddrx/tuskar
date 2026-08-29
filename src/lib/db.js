@@ -103,15 +103,24 @@ export function rowToTimeEntry(row) {
   };
 }
 
-export function rowToChatMessage(row, membersById = {}) {
+export function rowToChatMessage(row, membersById = {}, repliedTo = null) {
+  const deletedAt = row.deleted_at || null;
   return {
     id: row.id,
     conversationId: row.conversation_id,
     authorUserId: row.author_user_id,
     author: membersById[row.author_user_id] || "Unknown",
-    body: row.body,
-    attachment: row.attachment || null,
+    body: deletedAt ? "" : row.body,
+    attachment: deletedAt ? null : row.attachment || null,
     createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
+    editedAt: row.edited_at || null,
+    deletedAt,
+    replyToId: row.reply_to_id || null,
+    // The quoted message travels with the reply: it can be older than the
+    // page of messages the client holds, so the client cannot look it up.
+    replyTo: repliedTo || null,
+    forwarded: Boolean(row.forwarded_from_id),
   };
 }
 

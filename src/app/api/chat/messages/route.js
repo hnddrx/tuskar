@@ -31,6 +31,39 @@ async function authorize(conversationId, userId) {
   return canAccessConversation(conversationId, userId, orgIds);
 }
 
+/**
+ * The messages these replies are quoting, keyed by id.
+ *
+ * Fetched in one query rather than per message, and only ever from the same
+ * conversation the caller has already been cleared for.
+ */
+async function quotedById(sql, rows, namesById) {
+  const ids = [...new Set(rows.map((r) => r.reply_to_id).filter(Boolean))];
+  if (ids.length === 0) return {};
+
+  const parents = await sql`
+    select id, author_user_id, body, attachment, deleted_at
+    from chat_messages where id = any(${ids}::text[])
+  `;
+  return Object.fromEntries(
+    parents.map((p) => [
+      p.id,
+      {
+        id: p.id,
+        authorUserId: p.author_user_id,
+        author: namesById[p.author_user_id] || "Unknown",
+        body: p.deleted_at ? "" : p.body,
+        attachment: p.deleted_at ? null : p.attachment || null,
+        deletedAt: p.deleted_at || null,
+      },
+    ]),
+  );
+}
+
+function present(rows, namesById, quoted) {
+  return rows.map((r) => rowToChatMessage(r, namesById, quoted[r.reply_to_id] || null));
+}
+
 export async function GET(request) {
   const { userId } = await auth();
   const { searchParams } = new URL(request.url);
@@ -42,12 +75,14 @@ export async function GET(request) {
   }
 
   const sql = getSql();
-  // `since` is a cursor, so a poll carries only what is new.
+  // The cursor is on `updated_at`, not `created_at`, so that an edit or a
+  // delete reaches everyone else's screen — neither moves a message's send
+  // time, and a cursor on send time would step straight over both.
   const rows = since
     ? await sql`
         select * from chat_messages
-        where conversation_id = ${conversationId} and created_at > ${since}
-        order by created_at asc limit ${PAGE_SIZE}
+        where conversation_id = ${conversationId} and updated_at > ${since}
+        order by updated_at asc limit ${PAGE_SIZE}
       `
     : await sql`
         select * from (
@@ -58,35 +93,78 @@ export async function GET(request) {
       `;
 
   const namesById = await authorNames(userId);
-  return Response.json(rows.map((r) => rowToChatMessage(r, namesById)));
+  const quoted = await quotedById(sql, rows, namesById);
+  return Response.json(present(rows, namesById, quoted));
 }
 
 export async function POST(request) {
   const { userId } = await auth();
-  const { conversationId, body, attachment } = await request.json();
+  const { conversationId, body, attachment, replyToId, forwardOf } = await request.json();
 
   if (!(await authorize(conversationId, userId))) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  const text = String(body || "").trim().slice(0, MAX_BODY);
+  const sql = getSql();
+  let text = String(body || "").trim().slice(0, MAX_BODY);
+  let file = attachment || null;
+  let forwardedFrom = null;
+
+  // Forwarding copies a message you can already see into a conversation you
+  // can already write to. The content is taken from the stored row rather than
+  // from the request, so a forward cannot be used to put words in someone
+  // else's mouth.
+  if (forwardOf) {
+    const [source] = await sql`
+      select conversation_id, body, attachment, deleted_at
+      from chat_messages where id = ${forwardOf}
+    `;
+    if (!source || !(await authorize(source.conversation_id, userId))) {
+      return Response.json({ error: "Not found" }, { status: 404 });
+    }
+    if (source.deleted_at) {
+      return Response.json({ error: "That message was deleted" }, { status: 400 });
+    }
+    text = source.body || "";
+    file = source.attachment || null;
+    forwardedFrom = forwardOf;
+  }
+
+  // A reply has to point at something in the same conversation — otherwise a
+  // quote could be used to surface a line from a conversation the readers here
+  // are not in.
+  let replyTo = null;
+  if (replyToId) {
+    const [parent] = await sql`
+      select id from chat_messages
+      where id = ${replyToId} and conversation_id = ${conversationId}
+    `;
+    if (!parent) {
+      return Response.json({ error: "Can't reply to that message" }, { status: 400 });
+    }
+    replyTo = replyToId;
+  }
+
   // A message may be just a file, but it cannot be nothing at all.
-  if (!text && !attachment) {
+  if (!text && !file) {
     return Response.json({ error: "Message is empty" }, { status: 400 });
   }
 
-  const sql = getSql();
+  const at = nowIso();
   const [row] = await sql`
     insert into chat_messages (
-      id, org_id, conversation_id, author_user_id, body, attachment, created_at
+      id, org_id, conversation_id, author_user_id, body, attachment,
+      reply_to_id, forwarded_from_id, created_at, updated_at
     )
     values (
       ${newId("msg")}, ${roomOrgId(conversationId)}, ${conversationId}, ${userId}, ${text},
-      ${attachment ? JSON.stringify(attachment) : null}::jsonb, ${nowIso()}
+      ${file ? JSON.stringify(file) : null}::jsonb,
+      ${replyTo}, ${forwardedFrom}, ${at}, ${at}
     )
     returning *
   `;
 
   const namesById = await authorNames(userId);
-  return Response.json(rowToChatMessage(row, namesById), { status: 201 });
+  const quoted = await quotedById(sql, [row], namesById);
+  return Response.json(present([row], namesById, quoted)[0], { status: 201 });
 }

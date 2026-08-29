@@ -133,3 +133,70 @@ export function presenceStatus(lastSeenAt, now) {
   if (elapsed <= AWAY_WINDOW_MS) return "away";
   return "offline";
 }
+
+// ---------------------------------------------------------------------------
+// Editing, deleting, replying and forwarding
+// ---------------------------------------------------------------------------
+
+/**
+ * Only the author can change a message, and a deleted one is final — the
+ * server enforces both; this is the same rule so the menu does not offer an
+ * action that would be refused.
+ */
+export function canModifyMessage(message, userId) {
+  if (!message || !userId) return false;
+  if (message.deletedAt) return false;
+  return message.authorUserId === userId;
+}
+
+const SNIPPET_LENGTH = 120;
+
+/**
+ * The one-line preview shown in a reply quote and in the forward dialog. A
+ * message can be a file with no words at all, so it falls back to naming the
+ * file rather than rendering as blank.
+ */
+export function messageSnippet(message) {
+  if (!message) return "";
+  if (message.deletedAt) return "Message deleted";
+  const body = String(message.body || "").replace(/\s+/g, " ").trim();
+  if (body) {
+    return body.length > SNIPPET_LENGTH ? `${body.slice(0, SNIPPET_LENGTH - 1)}…` : body;
+  }
+  if (message.attachment) return message.attachment.filename || "Attachment";
+  return "";
+}
+
+/**
+ * Folds a polled batch into the messages already held.
+ *
+ * The batch is "everything changed since the cursor", not "everything new", so
+ * a message that was edited or deleted arrives again and has to replace the
+ * copy on screen rather than appear twice. Order is by when a message was
+ * sent, which is not the order changes arrive in.
+ */
+export function mergeMessages(existing, batch) {
+  const byId = new Map((existing || []).map((m) => [m.id, m]));
+  for (const message of batch || []) {
+    if (!message?.id) continue;
+    byId.set(message.id, message);
+  }
+  return [...byId.values()].sort((a, b) => {
+    const at = String(a.createdAt || "").localeCompare(String(b.createdAt || ""));
+    // Two messages in the same millisecond still need a stable order.
+    return at !== 0 ? at : String(a.id).localeCompare(String(b.id));
+  });
+}
+
+/**
+ * How far a client has caught up. Tracks the newest *change*, not the newest
+ * message, so that an edit to something old is not skipped by the next poll.
+ */
+export function nextCursor(messages, current = null) {
+  let cursor = current;
+  for (const message of messages || []) {
+    const at = message.updatedAt || message.createdAt;
+    if (at && (!cursor || String(at).localeCompare(String(cursor)) > 0)) cursor = at;
+  }
+  return cursor;
+}

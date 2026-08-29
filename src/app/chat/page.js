@@ -9,6 +9,8 @@ import { useConversation } from "@/lib/useConversation";
 import { dmConversationId } from "@/lib/chat";
 import ChatMessages, { initials, PresenceDot } from "@/components/ChatMessages";
 import ChatComposer from "@/components/ChatComposer";
+import ForwardMessageDialog from "@/components/ForwardMessageDialog";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { CHAT_PARAM } from "@/lib/teamScope";
 
 export default function ChatPage() {
@@ -31,6 +33,10 @@ function ChatPageInner() {
 
   const searchParams = useSearchParams();
   const requested = searchParams.get(CHAT_PARAM);
+
+  const confirm = useConfirm();
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [forwarding, setForwarding] = useState(null);
 
   const [active, setActive] = useState(requested || null);
   // On a phone the list and the conversation share the screen; arriving with
@@ -58,7 +64,15 @@ function ChatPageInner() {
     if (active) markRead(active);
   }, [active, markRead]);
 
-  const { messages, sending, send } = useConversation(active, { active: Boolean(active) });
+  const { messages, sending, send, edit, remove, forward } = useConversation(active, {
+    active: Boolean(active),
+  });
+
+  // A reply belongs to the conversation it was started in.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReplyingTo(null);
+  }, [active]);
 
   const channels = conversations.filter((c) => c.kind === "room");
   const directMessages = conversations.filter((c) => c.kind === "dm");
@@ -67,10 +81,20 @@ function ChatPageInner() {
     ? members.find((m) => m.id === current.withUserId)
     : null;
 
-  async function handleSend(body, attachment) {
-    const ok = await send(body, attachment);
+  async function handleSend(body, attachment, options) {
+    const ok = await send(body, attachment, options);
     if (ok) markRead(active);
     return ok;
+  }
+
+  async function handleDelete(message) {
+    const yes = await confirm({
+      title: "Delete this message?",
+      message: "It will show as deleted for everyone in this conversation.",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (yes) remove(message.id);
   }
 
   function startWith(user) {
@@ -160,8 +184,20 @@ function ChatPageInner() {
 
             {active ? (
               <>
-                <ChatMessages messages={messages} currentUserId={userId} />
-                <ChatComposer onSend={handleSend} sending={sending} />
+                <ChatMessages
+                  messages={messages}
+                  currentUserId={userId}
+                  onReply={setReplyingTo}
+                  onEdit={edit}
+                  onForward={setForwarding}
+                  onDelete={handleDelete}
+                />
+                <ChatComposer
+                  onSend={handleSend}
+                  sending={sending}
+                  replyingTo={replyingTo}
+                  onCancelReply={() => setReplyingTo(null)}
+                />
               </>
             ) : (
               <p className="px-4 py-6 text-sm text-slate-400 dark:text-slate-500">
@@ -173,6 +209,14 @@ function ChatPageInner() {
       </div>
 
       {composing && <NewMessageDialog onClose={() => setComposing(false)} onPick={startWith} />}
+
+      {forwarding && (
+        <ForwardMessageDialog
+          message={forwarding}
+          onClose={() => setForwarding(null)}
+          onForward={forward}
+        />
+      )}
     </div>
   );
 }

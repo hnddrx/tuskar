@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Send, Smile, Paperclip, X, Loader2 } from "lucide-react";
+import { Send, Smile, Paperclip, X, Loader2, CornerUpLeft } from "lucide-react";
 import { ATTACHMENT_ACCEPT, formatFileSize } from "@/lib/attachments";
+import { messageSnippet } from "@/lib/chat";
 
 // A small curated set rather than a picker library — enough for reactions and
 // tone, with no dependency and nothing to load.
@@ -18,7 +19,13 @@ const EMOJI = [
  * while the message is still being typed, and the send carries only a
  * descriptor.
  */
-export default function ChatComposer({ onSend, sending, compact = false }) {
+export default function ChatComposer({
+  onSend,
+  sending,
+  compact = false,
+  replyingTo = null,
+  onCancelReply,
+}) {
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -30,10 +37,11 @@ export default function ChatComposer({ onSend, sending, compact = false }) {
   async function submit(e) {
     e?.preventDefault?.();
     if (uploading) return;
-    const ok = await onSend(draft, attachment);
+    const ok = await onSend(draft, attachment, { replyToId: replyingTo?.id || null });
     if (ok) {
       setDraft("");
       setAttachment(null);
+      onCancelReply?.();
     }
   }
 
@@ -68,6 +76,26 @@ export default function ChatComposer({ onSend, sending, compact = false }) {
 
   return (
     <form onSubmit={submit} className="border-t border-slate-200 px-2.5 py-2 dark:border-slate-800">
+      {replyingTo && (
+        <div className="mb-1.5 flex items-center gap-2 rounded-md border-l-2 border-slate-400 bg-slate-50 px-2 py-1.5 text-xs dark:border-slate-500 dark:bg-slate-800/60">
+          <CornerUpLeft size={12} className="shrink-0 text-slate-400" />
+          <span className="shrink-0 text-slate-500 dark:text-slate-400">
+            Replying to <span className="font-medium">{replyingTo.author}</span>
+          </span>
+          <span className="min-w-0 flex-1 truncate text-slate-500 dark:text-slate-400">
+            {messageSnippet(replyingTo)}
+          </span>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            aria-label="Cancel reply"
+            className="shrink-0 rounded p-0.5 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-600 dark:hover:bg-slate-700"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
       {attachment && (
         <div className="mb-1.5 flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs dark:border-slate-800 dark:bg-slate-800/60">
           <Paperclip size={12} className="shrink-0 text-slate-400" />
