@@ -1,15 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ConfirmProvider";
 import NoteEditor from "@/components/NoteEditor";
+import { useNotePager } from "@/lib/useNotePager";
 
 export default function NoteDetailPage() {
+  return (
+    <Suspense fallback={<p className="px-4 py-6 text-sm text-slate-400 dark:text-slate-500 sm:px-8">Loading…</p>}>
+      <NoteDetailPageInner />
+    </Suspense>
+  );
+}
+
+function NoteDetailPageInner() {
   const { id } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { personal: { tasks, addTask, refreshNotes } } = useTasks();
   const { userId } = useAuth();
   const confirm = useConfirm();
@@ -18,6 +28,12 @@ export default function NoteDetailPage() {
   const [saveError, setSaveError] = useState(null);
   const lastPatchRef = useRef(null);
   const lastUserIdRef = useRef(undefined);
+
+  // Wherever this note was opened from — the Notes list with its live search
+  // and type filter, or a plain fallback for a bookmarked URL.
+  const from = searchParams.get("from") || "/notes";
+  const fromLabel = searchParams.get("fromLabel") || "Notes";
+  const pager = useNotePager(from, fromLabel, id);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,7 +94,7 @@ export default function NoteDetailPage() {
       const res = await fetch(`/api/notes/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
       refreshNotes();
-      router.push("/notes");
+      router.push(from);
     } catch (err) {
       setSaveError(err.message || "Failed to delete");
     }
@@ -130,8 +146,9 @@ export default function NoteDetailPage() {
         onDelete={handleDelete}
         onConvertActionItem={handleConvertActionItem}
         onAttachmentsChange={setNote}
+        pager={pager}
         breadcrumbs={[
-          { label: "Notes", href: "/notes" },
+          { label: fromLabel, href: from },
           { label: note.title || "Untitled note" },
         ]}
       />

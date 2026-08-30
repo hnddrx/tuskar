@@ -14,6 +14,8 @@ import CommentThread from "@/components/CommentThread";
 import PageHeader from "@/components/PageHeader";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import TaskTimePanel from "@/components/TaskTimePanel";
+import RecordPager from "@/components/RecordPager";
+import { useTaskPager } from "@/lib/useTaskPager";
 import { generateTaskDoc, downloadMarkdown } from "@/lib/docGenerator";
 
 export default function TeamTaskDetailPage() {
@@ -33,6 +35,9 @@ function TeamTaskDetailPageInner() {
 
   const [pendingChanges, setPendingChanges] = useState({});
 
+  const from = searchParams.get("from") || "/team/tasks";
+  const fromLabel = searchParams.get("fromLabel") || "Team Task Table";
+  const pager = useTaskPager(from, fromLabel, id);
 
   const task = tasks.find((t) => t.id === id);
   const taskMembers = membersForTeam(members, task?.orgId);
@@ -77,9 +82,6 @@ function TeamTaskDetailPageInner() {
     setPendingChanges({});
   }
 
-  const from = searchParams.get("from") || "/team/tasks";
-  const fromLabel = searchParams.get("fromLabel") || "Team Task Table";
-
   const ancestors = [];
   let cursor = task.parentId ? tasks.find((t) => t.id === task.parentId) : null;
   while (cursor) {
@@ -119,6 +121,7 @@ function TeamTaskDetailPageInner() {
         }
         actions={
           <>
+            <RecordPager pager={pager} />
             {isDirty && (
               <>
                 <button

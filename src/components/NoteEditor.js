@@ -27,6 +27,8 @@ import { NoteTypeBadge } from "@/components/Badge";
 import { generateNoteDoc, generateNoteWordHtml } from "@/lib/noteDocGenerator";
 import { downloadMarkdown, downloadWordDoc } from "@/lib/docGenerator";
 import RichTextEditor from "@/components/RichTextEditor";
+import ImagePreviewModal from "@/components/ImagePreviewModal";
+import RecordPager from "@/components/RecordPager";
 import { fromPlainText, toPlainText } from "@/lib/richText";
 import { newId } from "@/lib/id";
 import { useSpeechDictation } from "@/lib/useSpeechDictation";
@@ -42,6 +44,7 @@ export default function NoteEditor({
   onConvertActionItem,
   onAttachmentsChange,
   breadcrumbs,
+  pager,
 }) {
   const [pendingChanges, setPendingChanges] = useState({});
   const isDirty = mode === "create" || Object.keys(pendingChanges).length > 0;
@@ -166,6 +169,7 @@ export default function NoteEditor({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <NoteTypeBadge type={type} />
         <div className="flex items-center gap-2">
+          <RecordPager pager={pager} />
           <div className="relative">
             <button
               onClick={() => setExportOpen((o) => !o)}
@@ -469,6 +473,7 @@ function AttachmentsPanel({ noteId, mode, attachments, onAttachmentsChange }) {
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState(null);
+  const [preview, setPreview] = useState(null);
   const fileInputRef = useRef(null);
   const recorderRef = useRef(null);
   const mediaRecorderSupported = typeof window !== "undefined" && "MediaRecorder" in window;
@@ -603,11 +608,18 @@ function AttachmentsPanel({ noteId, mode, attachments, onAttachmentsChange }) {
                   className="flex items-center gap-2 rounded-md border border-slate-100 bg-slate-50 p-2 dark:border-slate-800 dark:bg-slate-800/60"
                 >
                   {a.kind === "image" && (
-                    <img
-                      src={`/api/notes/${noteId}/attachments/${a.id}`}
-                      alt={a.filename}
-                      className="h-12 w-12 shrink-0 rounded object-cover"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setPreview(a)}
+                      title="Preview"
+                      className="shrink-0 overflow-hidden rounded transition-opacity hover:opacity-80"
+                    >
+                      <img
+                        src={`/api/notes/${noteId}/attachments/${a.id}`}
+                        alt={a.filename}
+                        className="h-12 w-12 object-cover"
+                      />
+                    </button>
                   )}
                   {a.kind === "audio" && (
                     <audio
@@ -619,7 +631,20 @@ function AttachmentsPanel({ noteId, mode, attachments, onAttachmentsChange }) {
                   {a.kind === "file" && (
                     <FileText size={20} className="shrink-0 text-slate-400 dark:text-slate-500" />
                   )}
-                  {a.kind !== "audio" && (
+                  {a.kind === "image" && (
+                    <button
+                      type="button"
+                      onClick={() => setPreview(a)}
+                      className="min-w-0 flex-1 truncate text-left text-xs text-slate-600 transition-colors hover:underline dark:text-slate-400"
+                      title={a.filename}
+                    >
+                      {a.filename}
+                      <span className="ml-1 text-slate-400 dark:text-slate-500">
+                        {formatFileSize(a.size)}
+                      </span>
+                    </button>
+                  )}
+                  {a.kind === "file" && (
                     <a
                       href={`/api/notes/${noteId}/attachments/${a.id}`}
                       download={a.filename}
@@ -645,6 +670,13 @@ function AttachmentsPanel({ noteId, mode, attachments, onAttachmentsChange }) {
           )}
         </>
       )}
+
+      <ImagePreviewModal
+        src={preview ? `/api/notes/${noteId}/attachments/${preview.id}` : null}
+        attachment={preview}
+        onClose={() => setPreview(null)}
+      />
     </div>
   );
 }
+

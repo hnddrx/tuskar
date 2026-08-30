@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { groupMessages, presenceStatus, canModifyMessage, messageSnippet } from "@/lib/chat";
 import { formatFileSize } from "@/lib/attachments";
+import ImagePreviewModal from "@/components/ImagePreviewModal";
 
 export function initials(name) {
   return String(name || "?")
@@ -65,15 +66,30 @@ function formatDay(iso) {
 }
 
 function Attachment({ messageId, attachment }) {
+  const [preview, setPreview] = useState(false);
   const href = `/api/chat/messages/${messageId}/attachment`;
   if (attachment.kind === "image") {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={href}
-        alt={attachment.filename}
-        className="mt-1 max-h-48 rounded-md border border-slate-200 object-contain dark:border-slate-800"
-      />
+      <>
+        <button
+          type="button"
+          onClick={() => setPreview(true)}
+          title="Preview"
+          className="mt-1 block transition-opacity hover:opacity-80"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={href}
+            alt={attachment.filename}
+            className="max-h-48 rounded-md border border-slate-200 object-contain dark:border-slate-800"
+          />
+        </button>
+        <ImagePreviewModal
+          src={preview ? href : null}
+          attachment={attachment}
+          onClose={() => setPreview(false)}
+        />
+      </>
     );
   }
   return (

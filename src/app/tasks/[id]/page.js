@@ -12,6 +12,8 @@ import CommentThread from "@/components/CommentThread";
 import PageHeader from "@/components/PageHeader";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import TaskTimePanel from "@/components/TaskTimePanel";
+import RecordPager from "@/components/RecordPager";
+import { useTaskPager } from "@/lib/useTaskPager";
 import { generateTaskDoc, downloadMarkdown } from "@/lib/docGenerator";
 
 export default function TaskDetailPage() {
@@ -34,6 +36,13 @@ function TaskDetailPageInner() {
   // Save/Discard only appear while it's non-empty and disappear again the
   // moment every field matches its saved value (including a manual revert).
   const [pendingChanges, setPendingChanges] = useState({});
+
+  // Root of the breadcrumb trail: wherever this task was opened from
+  // (Task Table with its live filters, Board, or Auto Docs). Falls back to
+  // a plain Task Table link for a bookmarked/directly-pasted URL.
+  const from = searchParams.get("from") || "/tasks";
+  const fromLabel = searchParams.get("fromLabel") || "Task Table";
+  const pager = useTaskPager(from, fromLabel, id);
 
   const task = tasks.find((t) => t.id === id);
 
@@ -77,12 +86,6 @@ function TaskDetailPageInner() {
     setPendingChanges({});
   }
 
-  // Root of the breadcrumb trail: wherever this task was opened from
-  // (Task Table with its live filters, Board, or Auto Docs). Falls back to
-  // a plain Task Table link for a bookmarked/directly-pasted URL.
-  const from = searchParams.get("from") || "/tasks";
-  const fromLabel = searchParams.get("fromLabel") || "Task Table";
-
   const ancestors = [];
   let cursor = task.parentId ? tasks.find((t) => t.id === task.parentId) : null;
   while (cursor) {
@@ -119,6 +122,7 @@ function TaskDetailPageInner() {
         }
         actions={
           <>
+            <RecordPager pager={pager} />
             {isDirty && (
               <>
                 <button

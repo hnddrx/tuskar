@@ -27,8 +27,14 @@ import TaskFiltersPanel, {
   DEFAULT_FILTERS,
   countActiveFilters,
 } from "@/components/TaskFiltersPanel";
+import {
+  PAGE_SIZES,
+  buildTasksSearch,
+  commentsByTaskId,
+  orderTasks,
+  parseTasksSearchParams,
+} from "@/lib/taskList";
 
-const PAGE_SIZES = [10, 25, 50, 100];
 const COLUMNS_STORAGE_KEY = "taskar:team-columns:v1";
 
 function assigneeNames(t) {
@@ -161,69 +167,6 @@ const CELL_DEFS = {
   },
 };
 
-const SORT_DEFAULT = { key: "lastUpdate", dir: "desc" };
-const PAGE_SIZE_DEFAULT = 25;
-
-function parseTasksSearchParams(searchParams) {
-  return {
-    query: searchParams.get("q") || "",
-    filters: {
-      statuses: searchParams.getAll("status"),
-      priorities: searchParams.getAll("priority"),
-      assignees: searchParams.getAll("assignee"),
-      source: searchParams.get("source") || "all",
-      createdFrom: searchParams.get("createdFrom") || "",
-      createdTo: searchParams.get("createdTo") || "",
-      dueFrom: searchParams.get("dueFrom") || "",
-      dueTo: searchParams.get("dueTo") || "",
-    },
-    sort: {
-      key: searchParams.get("sort") || SORT_DEFAULT.key,
-      dir: searchParams.get("dir") || SORT_DEFAULT.dir,
-    },
-    page: Number(searchParams.get("page")) || 1,
-    pageSize: Number(searchParams.get("pageSize")) || PAGE_SIZE_DEFAULT,
-  };
-}
-
-function buildTasksSearch({ query, filters, sort, page, pageSize }) {
-  const params = new URLSearchParams();
-  if (query.trim()) params.set("q", query);
-  filters.statuses.forEach((v) => params.append("status", v));
-  filters.priorities.forEach((v) => params.append("priority", v));
-  filters.assignees.forEach((v) => params.append("assignee", v));
-  if (filters.source !== "all") params.set("source", filters.source);
-  if (filters.createdFrom) params.set("createdFrom", filters.createdFrom);
-  if (filters.createdTo) params.set("createdTo", filters.createdTo);
-  if (filters.dueFrom) params.set("dueFrom", filters.dueFrom);
-  if (filters.dueTo) params.set("dueTo", filters.dueTo);
-  if (sort.key !== SORT_DEFAULT.key) params.set("sort", sort.key);
-  if (sort.dir !== SORT_DEFAULT.dir) params.set("dir", sort.dir);
-  if (page !== 1) params.set("page", String(page));
-  if (pageSize !== PAGE_SIZE_DEFAULT) params.set("pageSize", String(pageSize));
-  return params.toString();
-}
-
-function normalize(v) {
-  return (v ?? "").toString().toLowerCase();
-}
-
-function compareValues(a, b, key) {
-  if (key === "progress" || key === "commentCount" || key === "trackedSeconds") {
-    return (a[key] || 0) - (b[key] || 0);
-  }
-  if (key === "targetDate" || key === "startDate") {
-    return (a[key] || "9999") < (b[key] || "9999") ? -1 : 1;
-  }
-  if (key === "createdAt") {
-    return (a.createdAt || "") < (b.createdAt || "") ? -1 : 1;
-  }
-  if (key === "assignee") {
-    return normalize(assigneeNames(a).join(", ")) < normalize(assigneeNames(b).join(", ")) ? -1 : 1;
-  }
-  return normalize(a[key]) < normalize(b[key]) ? -1 : 1;
-}
-
 export default function TeamTasksPage() {
   return (
     <Suspense fallback={<div className="flex-1 p-8 text-sm text-slate-400 dark:text-slate-500">Loading…</div>}>
@@ -311,61 +254,14 @@ function TeamTasksPageInner() {
     [visibleKeys]
   );
 
-  const commentsByTask = useMemo(() => {
-    const map = new Map();
-    for (const c of comments) {
-      if (!map.has(c.ticketId)) map.set(c.ticketId, []);
-      map.get(c.ticketId).push(c.text);
-    }
-    return map;
-  }, [comments]);
+  const commentsByTask = useMemo(() => commentsByTaskId(comments), [comments]);
 
   const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-
-    return tasks.filter((t) => {
-      if (filters.statuses.length && !filters.statuses.includes(t.status)) return false;
-      if (filters.priorities.length && !filters.priorities.includes(t.priority))
-        return false;
-      if (
-        filters.assignees.length &&
-        !assigneeNames(t).some((n) => filters.assignees.includes(n))
-      )
-        return false;
-      if (filters.source === "jira" && t.syncSource !== "Jira") return false;
-      if (filters.source === "manual" && t.syncSource === "Jira") return false;
-
-      if (filters.dueFrom && (!t.targetDate || t.targetDate < filters.dueFrom))
-        return false;
-      if (filters.dueTo && (!t.targetDate || t.targetDate > filters.dueTo))
-        return false;
-
-      const createdDate = t.createdAt?.slice(0, 10);
-      if (filters.createdFrom && (!createdDate || createdDate < filters.createdFrom))
-        return false;
-      if (filters.createdTo && (!createdDate || createdDate > filters.createdTo))
-        return false;
-
-      if (q) {
-        const haystack = [
-          t.ticketId,
-          t.name,
-          t.description,
-          ...assigneeNames(t),
-          t.status,
-          t.priority,
-          ...(commentsByTask.get(t.id) || []),
-        ]
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(q)) return false;
-      }
-
-      return true;
-    });
-  }, [tasks, query, filters, commentsByTask]);
+  const sorted = useMemo(
+    () => orderTasks(tasks, { query, filters, sort }, commentsByTask, { assigneeNames }),
+    [tasks, query, filters, sort, commentsByTask]
+  );
 
   // How many teams these tasks actually come from — the per-row badge says
   // which one, this says how wide the list is.
@@ -380,11 +276,6 @@ function TeamTasksPageInner() {
 
   // Where a new task would go: the team on screen, else the selected one.
   const createIn = teamScope || orgId;
-
-  const sorted = useMemo(() => {
-    const dir = sort.dir === "asc" ? 1 : -1;
-    return [...filtered].sort((a, b) => dir * compareValues(a, b, sort.key));
-  }, [filtered, sort]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, totalPages);
