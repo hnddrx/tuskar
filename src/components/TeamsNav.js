@@ -30,9 +30,16 @@ const TEAM_VIEWS = [
   { key: "tasks", label: "Team Tasks", icon: Users, href: teamTasksHref, at: "/team/tasks" },
   { key: "board", label: "Team Board", icon: KanbanSquare, href: teamBoardHref, at: "/team/board" },
   { key: "chat", label: "Chat", icon: MessagesSquare, href: teamChatHref, at: "/chat" },
-  // Listed for everyone, not just admins: a member who cannot change access
-  // can still see what theirs is, without having to ask.
-  { key: "access", label: "Team Access", icon: ShieldCheck, href: teamAccessHref, at: "/team/access" },
+  // Admins only. Who has been given what is the admin's business, and the
+  // screen does nothing for a member who cannot change any of it.
+  {
+    key: "access",
+    label: "Team Access",
+    icon: ShieldCheck,
+    href: teamAccessHref,
+    at: "/team/access",
+    adminOnly: true,
+  },
 ];
 
 // Matches the indigo the rest of the app uses for team scope.
@@ -67,7 +74,7 @@ export default function TeamsNav({ onNavigate }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const {
-    team: { orgs },
+    team: { orgs, isAdmin },
   } = useTasks();
   const { isLoaded, setActive } = useOrganizationList();
   const [expanded, setExpanded] = useState({});
@@ -192,7 +199,9 @@ export default function TeamsNav({ onNavigate }) {
 
               {open && (
                 <div className="ml-5 mt-0.5 space-y-0.5 border-l border-slate-200 pl-2 dark:border-slate-800">
-                  {TEAM_VIEWS.map(({ key, label, icon: Icon, href, at }) => {
+                  {TEAM_VIEWS.filter(
+                    (view) => !view.adminOnly || isAdmin(org.id)
+                  ).map(({ key, label, icon: Icon, href, at }) => {
                     const active = pathname.startsWith(at) && current === org.id;
                     return (
                       <Link

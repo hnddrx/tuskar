@@ -5,9 +5,10 @@ import { getTeamAccess, getTeamRoster, setTeamPermissions } from "@/lib/teamPerm
 /**
  * Who is in the active team and what each of them may do.
  *
- * Any member may read this: they can already see who they work with, and
- * someone needs to be able to check their own access without asking an admin.
- * Only an admin may change it.
+ * Admins only, to read as well as to write: who has been given what is the
+ * admin's business, and a member who cannot change any of it has no reason to
+ * be shown the whole team's access. A non-admin gets 404 rather than 403 —
+ * the screen does not exist for them, so neither should the endpoint.
  */
 export async function GET() {
   const { userId, orgId } = await auth();
@@ -15,12 +16,14 @@ export async function GET() {
   if (!orgId) return Response.json({ error: "No active team" }, { status: 400 });
 
   const access = await getTeamAccess(userId, orgId);
-  if (!access.member) return Response.json({ error: "Not found" }, { status: 404 });
+  if (!access.member || !access.isAdmin) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
 
   return Response.json({
     members: await getTeamRoster(orgId),
-    canManage: access.isAdmin,
-    me: { id: userId, isAdmin: access.isAdmin, permissions: access.permissions },
+    canManage: true,
+    me: { id: userId, isAdmin: true, permissions: access.permissions },
   });
 }
 

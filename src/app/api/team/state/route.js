@@ -53,6 +53,12 @@ export async function GET() {
     orgs.map((o) => [o.id, access[o.id]?.permissions || []])
   );
 
+  // Being an admin is not a permission — it comes from the Clerk role and is
+  // what decides who may hand permissions out — so it travels separately.
+  const admins = Object.fromEntries(
+    orgs.map((o) => [o.id, Boolean(access[o.id]?.isAdmin)])
+  );
+
   if (orgIds.length === 0) {
     return Response.json({
       tasks: [],
@@ -62,6 +68,7 @@ export async function GET() {
       defaults: DEFAULT_TEAM_CONFIG,
       config: DEFAULT_TEAM_CONFIG,
       permissions: {},
+      admins: {},
       hasSynced: false,
     });
   }
@@ -110,6 +117,7 @@ export async function GET() {
     defaults: DEFAULT_TEAM_CONFIG,
     config: activeConfig || DEFAULT_TEAM_CONFIG,
     permissions,
+    admins,
     hasSynced: Boolean(activeConfig),
   });
 }

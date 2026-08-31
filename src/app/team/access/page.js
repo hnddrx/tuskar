@@ -13,6 +13,11 @@ import { PERMISSION_AREAS, DEFAULT_PERMISSIONS } from "@/lib/permissions";
 // anything in it. An admin sets each member's access here — one checkbox per
 // thing they can do, grouped by the part of the app it affects.
 //
+// Admins only, and not just for the save: who has been given what is the
+// admin's business, and the screen does nothing for a member who cannot change
+// any of it. The nav hides the link, this page turns a direct visit away, and
+// the route answers 404 — a member should not learn the screen exists.
+//
 // Admins are listed but not editable: their access comes from their Clerk
 // role, so a checkbox here would be a lie. Saving is per member rather than
 // one Save for the page, because a single button over everyone's checkboxes
@@ -24,9 +29,12 @@ function sameSet(a, b) {
 
 export default function TeamAccessPage() {
   const { team } = useTasks();
-  const { orgId, orgName } = team;
+  const { orgId, orgName, isAdmin, hydrated } = team;
+  // Nobody is an admin until the team payload has arrived, so the decision has
+  // to wait for it — otherwise an admin is turned away for a frame.
+  const allowed = hydrated && Boolean(orgId) && isAdmin(orgId);
 
-  const [state, setState] = useState({ members: [], canManage: false, me: null });
+  const [state, setState] = useState({ members: [], me: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // Unsaved edits, keyed by member id, so one row can be dirty or busy without
@@ -37,8 +45,11 @@ export default function TeamAccessPage() {
   // Fetched in the effect rather than through a callback the effect calls:
   // every setState here happens after an await, so switching teams cannot
   // cascade a render before the request has even gone out.
+  // Keyed on the team as well as on whether this person may see it: an admin
+  // of two teams stays "allowed" across a switch, so watching that alone would
+  // leave the previous team's roster on screen.
   useEffect(() => {
-    if (!orgId) return undefined;
+    if (!allowed) return undefined;
     let cancelled = false;
 
     (async () => {
@@ -61,7 +72,7 @@ export default function TeamAccessPage() {
     return () => {
       cancelled = true;
     };
-  }, [orgId]);
+  }, [orgId, allowed]);
 
   const rows = useMemo(
     () =>
@@ -113,7 +124,36 @@ export default function TeamAccessPage() {
     }
   }
 
+  if (!hydrated) {
+    return (
+      <div className="flex-1">
+        <PageHeader title="Team access" />
+        <div className="px-4 py-6 sm:px-8">
+          <p className="text-sm text-slate-400 dark:text-slate-500">Loading…</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!orgId) return <NoActiveTeam title="Team access" />;
+
+  if (!allowed) {
+    return (
+      <div className="flex-1">
+        <PageHeader
+          title="Team access"
+          scope="team"
+          teamName={orgName}
+          subtitle="Only a team admin can see this."
+        />
+        <div className="px-4 py-6 sm:px-8">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Ask an admin of {orgName || "this team"} if your access needs changing.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1">
@@ -121,11 +161,7 @@ export default function TeamAccessPage() {
         title="Team access"
         scope="team"
         teamName={orgName}
-        subtitle={
-          state.canManage
-            ? "Choose what each member can do in this team. Changes apply as soon as you save them."
-            : "What each member can do in this team. Only an admin can change this."
-        }
+        subtitle="Choose what each member can do in this team. Changes apply as soon as you save them."
       />
 
       <div className="px-4 py-6 sm:px-8">
@@ -176,26 +212,24 @@ export default function TeamAccessPage() {
                       Admins always have full access.
                     </p>
                   ) : (
-                    state.canManage && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => resetToDefaults(member.id)}
-                          className="flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
-                        >
-                          <RotateCcw size={12} /> Defaults
-                        </button>
-                        <button
-                          type="button"
-                          disabled={!member.dirty || busy[member.id]}
-                          onClick={() => save(member)}
-                          className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
-                        >
-                          {busy[member.id] && <Loader2 size={12} className="animate-spin" />}
-                          {member.dirty ? "Save changes" : "Saved"}
-                        </button>
-                      </div>
-                    )
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => resetToDefaults(member.id)}
+                        className="flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
+                      >
+                        <RotateCcw size={12} /> Defaults
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!member.dirty || busy[member.id]}
+                        onClick={() => save(member)}
+                        className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
+                      >
+                        {busy[member.id] && <Loader2 size={12} className="animate-spin" />}
+                        {member.dirty ? "Save changes" : "Saved"}
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -211,7 +245,7 @@ export default function TeamAccessPage() {
                             key={p.key}
                             title={p.hint}
                             className={`flex items-center gap-2 text-sm ${
-                              member.isAdmin || !state.canManage
+                              member.isAdmin
                                 ? "cursor-default text-slate-400 dark:text-slate-500"
                                 : "cursor-pointer text-slate-700 dark:text-slate-300"
                             }`}
@@ -219,7 +253,7 @@ export default function TeamAccessPage() {
                             <input
                               type="checkbox"
                               checked={member.isAdmin || member.current.includes(p.key)}
-                              disabled={member.isAdmin || !state.canManage}
+                              disabled={member.isAdmin}
                               onChange={(e) => toggle(member.id, p.key, e.target.checked)}
                               className="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-700"
                             />

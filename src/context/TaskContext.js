@@ -100,6 +100,9 @@ export function TaskProvider({ children }) {
     // What this person may do, per team. Used only to decide which controls to
     // draw — the API enforces the same rules regardless of what is sent.
     permissions: {},
+    // Which teams they administer. Separate from permissions because it is a
+    // Clerk role, and it is what decides who can hand permissions out.
+    admins: {},
   });
   // Pulled out so callbacks can depend on the team list alone rather than on
   // every task edit. Preserved by reference across the other setTeam calls.
@@ -261,6 +264,7 @@ export function TaskProvider({ children }) {
           defaults: server.defaults || EMPTY_TEAM_CONFIG,
           orgs: server.orgs || [],
           permissions: server.permissions || {},
+          admins: server.admins || {},
         });
         setTeamEvents(events);
       } catch (err) {
@@ -804,6 +808,12 @@ export function TaskProvider({ children }) {
     [team.permissions, orgId]
   );
 
+  /** Does this person administer the team — the selected one unless named? */
+  const isTeamAdmin = useCallback(
+    (forOrgId = null) => Boolean(team.admins?.[forOrgId || orgId]),
+    [team.admins, orgId]
+  );
+
   // Everything archived, grouped by record type — what the Archive page
   // renders, and what an in-list "Show archived" toggle draws from.
   const archived = useMemo(
@@ -951,6 +961,7 @@ export function TaskProvider({ children }) {
         defaults: teamState.defaults || EMPTY_TEAM_CONFIG,
         orgs: teamState.orgs || [],
         permissions: teamState.permissions || {},
+        admins: teamState.admins || {},
       }));
     }
     if (events) setPersonalEvents(events);
@@ -1010,6 +1021,7 @@ export function TaskProvider({ children }) {
       team: {
         permissions: team.permissions,
         can: canInTeam,
+        isAdmin: isTeamAdmin,
         tasks: liveTeamTasks,
         comments: liveTeamComments,
         allTasks: teamTasks,
@@ -1065,6 +1077,7 @@ export function TaskProvider({ children }) {
       liveTeamEvents,
       liveTimeEntries,
       canInTeam,
+      isTeamAdmin,
       archived,
       restoreArchived,
       deleteArchivedForever,
