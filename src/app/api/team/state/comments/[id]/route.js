@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { getSql } from "@/lib/db";
 import { requireTeamPermission } from "@/lib/teamPermissions";
+import { taskMatchesRules } from "@/lib/recordRules";
 
 export async function DELETE(request, { params }) {
   const { userId, orgId } = await auth();
@@ -11,9 +12,23 @@ export async function DELETE(request, { params }) {
 
   const gate = await requireTeamPermission(userId, orgId, "comments.delete");
   if (gate.error) return gate.error;
+
   const { searchParams } = new URL(request.url);
   const taskId = searchParams.get("taskId");
   const sql = getSql();
+
+  // The comment's own task decides this, read from the comment rather than
+  // from the query string, which the caller controls.
+  if (gate.access.rules) {
+    const [task] = await sql`
+      select t.* from team_tasks t
+      join team_comments c on c.ticket_id = t.id
+      where c.id = ${id} and c.org_id = ${orgId}
+    `;
+    if (!task || !taskMatchesRules(task, gate.access.rules, userId)) {
+      return Response.json({ error: "Not found" }, { status: 404 });
+    }
+  }
 
   const archivedAt = new Date().toISOString();
 

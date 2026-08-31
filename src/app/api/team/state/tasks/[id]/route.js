@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { getSql, rowToTeamTask, getTeamMembersById, getUserOrgIds } from "@/lib/db";
-import { requireTeamPermission } from "@/lib/teamPermissions";
+import { getTeamAccess, requireTeamPermission } from "@/lib/teamPermissions";
+import { taskMatchesRules } from "@/lib/recordRules";
 
 export async function PATCH(request, { params }) {
   const { userId } = await auth();
@@ -20,6 +21,12 @@ export async function PATCH(request, { params }) {
 
   const gate = await requireTeamPermission(userId, orgId, "tasks.edit");
   if (gate.error) return gate.error;
+
+  // A task the rules hide is not merely absent from the list — it cannot be
+  // edited by anyone who reaches its URL directly. Same evaluator as the feed.
+  if (!taskMatchesRules(existing, gate.access.rules, userId)) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
 
   const membersById = await getTeamMembersById(orgId);
   const merged = { ...rowToTeamTask(existing, membersById), ...patch };
@@ -56,8 +63,10 @@ export async function DELETE(_request, { params }) {
   const sql = getSql();
 
   // Deleting is authorised by membership of the task's own team, so the
-  // delete cannot silently do nothing when another team is selected.
-  const [existing] = await sql`select org_id from team_tasks where id = ${id}`;
+  // delete cannot silently do nothing when another team is selected. The whole
+  // row is read, not just its team: the record rules below are evaluated
+  // against its assignees and author.
+  const [existing] = await sql`select * from team_tasks where id = ${id}`;
   const orgIds = await getUserOrgIds(userId);
   if (!existing || !orgIds.includes(existing.org_id)) {
     return Response.json({ error: "Not found" }, { status: 404 });
@@ -65,6 +74,10 @@ export async function DELETE(_request, { params }) {
 
   const gate = await requireTeamPermission(userId, existing.org_id, "tasks.delete");
   if (gate.error) return gate.error;
+
+  if (!taskMatchesRules(existing, gate.access.rules, userId)) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
 
   // Archives rather than deletes — see lib/archive. Its comments go with it
   // so restoring the task brings the thread back; subtasks keep their

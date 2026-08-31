@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { normalizePermissions } from "@/lib/permissions";
+import { normalizeRules } from "@/lib/recordRules";
 import { getTeamAccess, getTeamRoster, setTeamPermissions } from "@/lib/teamPermissions";
 
 /**
@@ -41,7 +42,7 @@ export async function PUT(request) {
     );
   }
 
-  const { userId: memberId, permissions } = await request.json();
+  const { userId: memberId, permissions, rules } = await request.json();
   if (!memberId) {
     return Response.json({ error: "Which member?" }, { status: 400 });
   }
@@ -61,8 +62,15 @@ export async function PUT(request) {
     );
   }
 
-  // Whatever the client sent, only permissions we recognise are stored.
-  await setTeamPermissions(orgId, memberId, normalizePermissions(permissions), userId);
+  // Whatever the client sent, only permissions and conditions we recognise
+  // are stored — an invented field or operator never reaches the database.
+  await setTeamPermissions(
+    orgId,
+    memberId,
+    normalizePermissions(permissions),
+    normalizeRules(rules),
+    userId
+  );
 
   return Response.json({ members: await getTeamRoster(orgId), canManage: true });
 }

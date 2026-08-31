@@ -6,6 +6,7 @@ import { getSmtpConfig, getSmtpConfigForOrg } from "@/lib/smtpCredentials";
 import { sendViaSmtp } from "@/lib/smtpTransport";
 import { formatSender } from "@/lib/smtp";
 import { requireTeamPermission } from "@/lib/teamPermissions";
+import { taskMatchesRules } from "@/lib/recordRules";
 
 // The people a comment mentions are worked out here from the comment text and
 // the team's real membership — never taken from the request. Whoever controls
@@ -51,7 +52,7 @@ export async function POST(request) {
   // the team off the task also means the mention lookup below searches the
   // right membership.
   const [target] = await sql`
-    select org_id from team_tasks where id = ${comment.ticketId}
+    select * from team_tasks where id = ${comment.ticketId}
   `;
   const orgId = target?.org_id;
   const orgIds = await getUserOrgIds(userId);
@@ -61,6 +62,12 @@ export async function POST(request) {
 
   const gate = await requireTeamPermission(userId, orgId, "comments.create");
   if (gate.error) return gate.error;
+
+  // Commenting on a task the rules hide would both reveal that it exists and
+  // leave a comment on a thread its author cannot read.
+  if (!taskMatchesRules(target, gate.access.rules, userId)) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
 
   const { ids: mentions, recipients } = await resolveMentions(
     orgId,

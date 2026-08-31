@@ -506,6 +506,12 @@ async function migrate() {
   `;
   await sql`create index if not exists team_permissions_org_idx on team_permissions (org_id)`;
 
+  // Record rules: which tasks a member can see at all, as against what they
+  // may do with the ones they see. Null means unrestricted, which is what
+  // every member has until an admin narrows it — so existing rows, and every
+  // member who predates this column, keep seeing the whole team's work.
+  await sql`alter table team_permissions add column if not exists record_rules jsonb`;
+
   const [presenceOrgColumn] = await sql`
     select 1 from information_schema.columns
     where table_name = 'chat_presence' and column_name = 'org_id'

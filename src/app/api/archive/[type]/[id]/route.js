@@ -3,6 +3,48 @@ import { del } from "@vercel/blob";
 import { getSql, getUserOrgIds } from "@/lib/db";
 import { archiveTypeOf } from "@/lib/archive";
 import { listAttachments } from "@/lib/attachmentStore";
+import { getTeamAccess } from "@/lib/teamPermissions";
+import { hasPermission } from "@/lib/permissions";
+import { taskMatchesRules } from "@/lib/recordRules";
+
+// Which permission a team record's restore or purge needs. Personal records
+// need none: they are the caller's own by definition.
+const TEAM_PERMISSION = {
+  teamTask: "tasks.delete",
+  teamComment: "comments.delete",
+  teamEvent: "events.delete",
+};
+
+/**
+ * Restoring and purging are as much a mutation as archiving was, so they take
+ * the same checks — membership was never enough, and a record hidden by a
+ * member's rules must not be reachable here by id either.
+ *
+ * Returns an error response, or null when the caller may proceed.
+ */
+async function guardTeamRecord(sql, typeKey, row, userId) {
+  const permission = TEAM_PERMISSION[typeKey];
+  if (!permission) return null;
+
+  const access = await getTeamAccess(userId, row.org_id);
+  if (!access.member || !hasPermission(access.permissions, permission)) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+  if (!access.rules) return null;
+
+  // A comment is judged by the task it hangs off, the same way the lists do it.
+  const task =
+    typeKey === "teamTask"
+      ? row
+      : typeKey === "teamComment"
+        ? (await sql`select * from team_tasks where id = ${row.ticket_id}`)[0]
+        : null;
+  if (!task) return null;
+
+  return taskMatchesRules(task, access.rules, userId)
+    ? null
+    : Response.json({ error: "Not found" }, { status: 404 });
+}
 
 // Restoring and permanently deleting archived records.
 //
@@ -46,6 +88,9 @@ export async function POST(_request, { params }) {
   const scope = await scopedTo(type, userId);
   const row = await findArchived(sql, type, id, scope);
   if (!row) return Response.json({ error: "Not found" }, { status: 404 });
+
+  const denied = await guardTeamRecord(sql, typeKey, row, userId);
+  if (denied) return denied;
 
   await sql.query(
     `update ${type.table} set archived_at = null
@@ -103,6 +148,9 @@ export async function DELETE(_request, { params }) {
   const scope = await scopedTo(type, userId);
   const row = await findArchived(sql, type, id, scope);
   if (!row) return Response.json({ error: "Not found" }, { status: 404 });
+
+  const denied = await guardTeamRecord(sql, typeKey, row, userId);
+  if (denied) return denied;
 
   // Only ever reachable for a record that is already archived, so nothing can
   // be destroyed without having been archived first.

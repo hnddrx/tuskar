@@ -8,6 +8,7 @@
 import { clerkClient } from "@clerk/nextjs/server";
 import { getSql } from "@/lib/db";
 import { hasPermission, permissionsForMember } from "@/lib/permissions";
+import { normalizeRules } from "@/lib/recordRules";
 
 function isAdminRole(role) {
   return String(role || "").includes("admin");
@@ -44,7 +45,7 @@ export async function getTeamAccess(userId, orgId) {
   const isAdmin = isAdminRole(me.role);
   const sql = getSql();
   const [row] = await sql`
-    select permissions from team_permissions
+    select permissions, record_rules from team_permissions
     where org_id = ${orgId} and user_id = ${userId}
   `;
 
@@ -53,6 +54,9 @@ export async function getTeamAccess(userId, orgId) {
     isAdmin,
     // `row` absent means nobody has decided; a row holding [] is a decision.
     permissions: permissionsForMember({ isAdmin, stored: row ? row.permissions : null }),
+    // Rules never narrow an admin: they hand them out, and could otherwise
+    // hide the team's work from themselves with no way back.
+    rules: isAdmin ? null : normalizeRules(row?.record_rules),
   };
 }
 
@@ -74,22 +78,24 @@ export async function getAccessByOrg(userId) {
 
   const sql = getSql();
   const rows = await sql`
-    select org_id, permissions from team_permissions
+    select org_id, permissions, record_rules from team_permissions
     where user_id = ${userId} and org_id = any(${orgIds}::text[])
   `;
-  const stored = new Map(rows.map((r) => [r.org_id, r.permissions]));
+  const stored = new Map(rows.map((r) => [r.org_id, r]));
 
   const byOrg = {};
   for (const m of data) {
     const id = m.organization?.id;
     if (!id) continue;
     const isAdmin = isAdminRole(m.role);
+    const row = stored.get(id);
     byOrg[id] = {
       isAdmin,
       permissions: permissionsForMember({
         isAdmin,
-        stored: stored.has(id) ? stored.get(id) : null,
+        stored: row ? row.permissions : null,
       }),
+      rules: isAdmin ? null : normalizeRules(row?.record_rules),
     };
   }
   return byOrg;
@@ -132,9 +138,10 @@ export async function getTeamRoster(orgId) {
 
   const sql = getSql();
   const rows = await sql`
-    select user_id, permissions from team_permissions where org_id = ${orgId}
+    select user_id, permissions, record_rules from team_permissions
+    where org_id = ${orgId}
   `;
-  const stored = new Map(rows.map((r) => [r.user_id, r.permissions]));
+  const stored = new Map(rows.map((r) => [r.user_id, r]));
 
   return data
     .filter((m) => m.publicUserData?.userId)
@@ -151,22 +158,34 @@ export async function getTeamRoster(orgId) {
         configured: stored.has(id),
         permissions: permissionsForMember({
           isAdmin,
-          stored: stored.has(id) ? stored.get(id) : null,
+          stored: stored.has(id) ? stored.get(id).permissions : null,
         }),
+        rules: isAdmin ? null : normalizeRules(stored.get(id)?.record_rules),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-/** Records an admin's decision about one member. */
-export async function setTeamPermissions(orgId, userId, permissions, updatedBy) {
+/**
+ * Records an admin's decision about one member: what they may do, and which
+ * records they may see. Both are written together so a save can never leave
+ * one half of someone's access from before and one half from after.
+ */
+export async function setTeamPermissions(orgId, userId, permissions, rules, updatedBy) {
   const sql = getSql();
+  const normalized = normalizeRules(rules);
   await sql`
-    insert into team_permissions (org_id, user_id, permissions, updated_at, updated_by)
-    values (${orgId}, ${userId}, ${JSON.stringify(permissions)}::jsonb,
-            ${new Date().toISOString()}, ${updatedBy})
+    insert into team_permissions (
+      org_id, user_id, permissions, record_rules, updated_at, updated_by
+    )
+    values (
+      ${orgId}, ${userId}, ${JSON.stringify(permissions)}::jsonb,
+      ${normalized ? JSON.stringify(normalized) : null}::jsonb,
+      ${new Date().toISOString()}, ${updatedBy}
+    )
     on conflict (org_id, user_id) do update
       set permissions = excluded.permissions,
+          record_rules = excluded.record_rules,
           updated_at = excluded.updated_at,
           updated_by = excluded.updated_by
   `;

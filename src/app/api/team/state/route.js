@@ -9,6 +9,7 @@ import {
 import { DEFAULT_STATUS_PROGRESS } from "@/lib/progress";
 import { hasPermission } from "@/lib/permissions";
 import { getAccessByOrg } from "@/lib/teamPermissions";
+import { taskMatchesRules } from "@/lib/recordRules";
 import seed from "@/data/seed.json";
 
 const DEFAULT_TEAM_CONFIG = {
@@ -82,11 +83,25 @@ export async function GET() {
     where org_id = any(${orgIds}::text[])
     order by created_at asc
   `;
+  // Record rules decide which tasks exist for this person at all. Applied
+  // here rather than in the query: this is the one feed behind the task list,
+  // the board and the detail page, so filtering once covers all three, and one
+  // evaluator means the list and the mutation routes cannot disagree.
+  const visibleTaskRows = taskRows.filter((row) =>
+    taskMatchesRules(row, access[row.org_id]?.rules, userId)
+  );
+  const visibleTaskIds = new Set(visibleTaskRows.map((row) => row.id));
+
   const commentRows = await sql`
     select * from team_comments
     where org_id = any(${orgIds}::text[])
     order by created asc
   `;
+
+  // A comment travels with its task rather than being ruled on itself: someone
+  // restricted to their own work still reads the whole thread on a task they
+  // can see. A comment whose task is hidden goes with it.
+  const visibleComments = commentRows.filter((row) => visibleTaskIds.has(row.ticket_id));
 
   // Statuses, priorities and types are per team — they drive that team's
   // board columns and its dropdowns — so every team's set is returned and the
@@ -109,8 +124,8 @@ export async function GET() {
   const activeConfig = orgId ? configs[orgId] : null;
 
   return Response.json({
-    tasks: taskRows.map((r) => rowToTeamTask(r, membersById, orgNames)),
-    comments: commentRows.map((r) => rowToTeamComment(r, membersById)),
+    tasks: visibleTaskRows.map((r) => rowToTeamTask(r, membersById, orgNames)),
+    comments: visibleComments.map((r) => rowToTeamComment(r, membersById)),
     orgs,
     configs,
     // What a team that has never been configured starts from.

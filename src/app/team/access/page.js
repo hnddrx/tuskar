@@ -6,6 +6,7 @@ import PageHeader from "@/components/PageHeader";
 import NoActiveTeam from "@/components/NoActiveTeam";
 import { useTasks } from "@/context/TaskContext";
 import { PERMISSION_AREAS, DEFAULT_PERMISSIONS } from "@/lib/permissions";
+import RecordRuleEditor from "@/components/RecordRuleEditor";
 
 // Who in this team may do what.
 //
@@ -27,9 +28,16 @@ function sameSet(a, b) {
   return a.length === b.length && a.every((k) => b.includes(k));
 }
 
+// Rules are a nested shape rather than a flat list, and the order of their
+// conditions is meaningful to read even though it does not change the outcome,
+// so they compare as written rather than as a set.
+function sameRules(a, b) {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
 export default function TeamAccessPage() {
   const { team } = useTasks();
-  const { orgId, orgName, isAdmin, hydrated } = team;
+  const { orgId, orgName, isAdmin, hydrated, config } = team;
   // Nobody is an admin until the team payload has arrived, so the decision has
   // to wait for it — otherwise an admin is turned away for a frame.
   const allowed = hydrated && Boolean(orgId) && isAdmin(orgId);
@@ -38,8 +46,10 @@ export default function TeamAccessPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   // Unsaved edits, keyed by member id, so one row can be dirty or busy without
-  // disturbing anyone else's.
+  // disturbing anyone else's. Permissions and rules are drafted separately but
+  // saved together — half of someone's access is never written on its own.
   const [draft, setDraft] = useState({});
+  const [ruleDraft, setRuleDraft] = useState({});
   const [busy, setBusy] = useState({});
 
   // Fetched in the effect rather than through a callback the effect calls:
@@ -61,6 +71,7 @@ export default function TeamAccessPage() {
         if (cancelled) return;
         setState(data);
         setDraft({});
+        setRuleDraft({});
         setError(null);
       } catch (err) {
         if (!cancelled) setError(err.message);
@@ -78,9 +89,15 @@ export default function TeamAccessPage() {
     () =>
       state.members.map((m) => {
         const current = draft[m.id] ?? m.permissions;
-        return { ...m, current, dirty: !sameSet(current, m.permissions) };
+        const currentRules = m.id in ruleDraft ? ruleDraft[m.id] : m.rules ?? null;
+        return {
+          ...m,
+          current,
+          currentRules,
+          dirty: !sameSet(current, m.permissions) || !sameRules(currentRules, m.rules ?? null),
+        };
       }),
-    [state.members, draft]
+    [state.members, draft, ruleDraft]
   );
 
   function toggle(memberId, key, on) {
@@ -94,6 +111,9 @@ export default function TeamAccessPage() {
 
   function resetToDefaults(memberId) {
     setDraft((d) => ({ ...d, [memberId]: [...DEFAULT_PERMISSIONS] }));
+    // Defaults means the ordinary member: the standard permissions, and every
+    // task in the team visible.
+    setRuleDraft((d) => ({ ...d, [memberId]: null }));
   }
 
   async function save(member) {
@@ -103,12 +123,21 @@ export default function TeamAccessPage() {
       const res = await fetch("/api/team/permissions", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: member.id, permissions: member.current }),
+        body: JSON.stringify({
+          userId: member.id,
+          permissions: member.current,
+          rules: member.currentRules,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Couldn't save that");
       setState((s) => ({ ...s, members: data.members }));
       setDraft((d) => {
+        const next = { ...d };
+        delete next[member.id];
+        return next;
+      });
+      setRuleDraft((d) => {
         const next = { ...d };
         delete next[member.id];
         return next;
@@ -264,6 +293,17 @@ export default function TeamAccessPage() {
                     </div>
                   ))}
                 </div>
+
+                {!member.isAdmin && (
+                  <RecordRuleEditor
+                    value={member.currentRules}
+                    members={state.members.filter((m) => m.id !== member.id)}
+                    config={config}
+                    onChange={(rules) =>
+                      setRuleDraft((d) => ({ ...d, [member.id]: rules }))
+                    }
+                  />
+                )}
               </section>
             ))}
           </div>
