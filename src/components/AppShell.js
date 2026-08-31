@@ -20,7 +20,7 @@ import {
   Mail,
   Archive,
 } from "lucide-react";
-import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
+import { UserButton } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 import TeamsNav from "@/components/TeamsNav";
 import { DONE_STATUSES } from "@/lib/constants";
@@ -70,33 +70,22 @@ function Brand() {
   return <Wordmark />;
 }
 
-// The sidebar is only 240px wide, so Clerk's switcher has to be told to fill
-// it and wrap its own label — left to its natural width it overflows the
-// aside and lands on top of the page content next to it.
-const SWITCHER_APPEARANCE = {
-  elements: {
-    rootBox: "w-full",
-    organizationSwitcherTrigger:
-      "w-full justify-between gap-2 rounded-lg border border-slate-200 px-2.5 py-2 dark:border-slate-800",
-    organizationPreview: "min-w-0",
-    organizationPreviewMainIdentifier: "truncate text-sm",
-    organizationPreviewSecondaryIdentifier: "truncate text-xs",
-  },
-};
-
+// Clerk's organization switcher used to sit here. Everything it offered now
+// has a place of its own: the Teams list switches team by opening one, New
+// team creates one, and Manage team opens Clerk's own screen per team. What
+// was left was a second, competing way to change teams — and the only one
+// that could leave the app on a team the sidebar was not showing.
+//
+// Which team a page is looking at lives in the URL, and opening any team sets
+// the active one to match, so nothing depended on the switcher to get there.
 function SidebarIdentity() {
   return (
-    <>
-      <div className="flex items-center gap-2 px-4 pb-3 pt-5">
-        <Brand />
-        <div className="shrink-0">
-          <UserButton />
-        </div>
+    <div className="flex items-center gap-2 px-4 pb-3 pt-5">
+      <Brand />
+      <div className="shrink-0">
+        <UserButton />
       </div>
-      <div className="px-3 pb-3">
-        <OrganizationSwitcher hidePersonal={false} appearance={SWITCHER_APPEARANCE} />
-      </div>
-    </>
+    </div>
   );
 }
 
@@ -299,9 +288,6 @@ export default function AppShell({ children }) {
               >
                 <X size={18} />
               </button>
-            </div>
-            <div className="px-3 pb-3">
-              <OrganizationSwitcher hidePersonal={false} appearance={SWITCHER_APPEARANCE} />
             </div>
             <div className="px-4 pb-3">
               <ThemeToggle />
