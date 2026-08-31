@@ -9,6 +9,7 @@ import {
   MessagesSquare,
   ShieldCheck,
   Settings,
+  Plus,
   ChevronRight,
   Search,
   X,
@@ -155,9 +156,22 @@ export default function TeamsNav({ onNavigate }) {
           All teams
         </Link>
 
+        {/* Creating a team used to live only inside the Clerk switcher, which
+            is where you go to change teams rather than to make one. */}
+        <Link
+          href="/team/new"
+          onClick={onNavigate}
+          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors sm:py-2 ${
+            pathname.startsWith("/team/new") ? ACTIVE : IDLE
+          }`}
+        >
+          <Plus size={16} strokeWidth={2} />
+          New team
+        </Link>
+
         {orgs.length === 0 ? (
           <p className="px-3 py-1 text-xs text-slate-400 dark:text-slate-500">
-            You&apos;re not in a team yet.
+            You&apos;re not in a team yet — start one above.
           </p>
         ) : (
           <div className="relative px-1 py-1">
