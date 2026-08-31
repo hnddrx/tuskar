@@ -12,6 +12,7 @@ import {
   ArrowDown,
   ArrowUpDown,
 } from "lucide-react";
+import { useClerk } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/Badge";
@@ -187,6 +188,9 @@ function TeamTasksPageInner() {
   const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
+  // Creating a team opens Clerk's own screen over this page rather than
+  // navigating away from a list you were part-way through reading.
+  const { openCreateOrganization } = useClerk();
 
   // "?team=" narrows the list to one team; without it you get every team you
   // are in. An id for a team you have left falls back to the wider view.
@@ -337,12 +341,15 @@ function TeamTasksPageInner() {
         }`}
         actions={
           <>
-          <Link
-            href="/team/new"
+          <button
+            type="button"
+            onClick={() =>
+              openCreateOrganization({ afterCreateOrganizationUrl: "/team/tasks?team=:id" })
+            }
             className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
           >
             <Plus size={16} /> New team
-          </Link>
+          </button>
           <button
             onClick={openNew}
             disabled={!createIn || !canCreate}

@@ -14,7 +14,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useOrganizationList } from "@clerk/nextjs";
+import { useClerk, useOrganizationList } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 import { roomOrgId } from "@/lib/chat";
 import {
@@ -43,10 +43,8 @@ const TEAM_VIEWS = [
     at: "/team/access",
     adminOnly: true,
   },
-  // Clerk's switcher offers "Manage organization" for the active organization
-  // only, and takes no prop to offer it for the rest. Listing it per team is
-  // how every team you are in gets a way in — the link makes that team active
-  // on its way to the page.
+  // A page, not a modal — see src/app/team/manage/page.js for why Clerk's
+  // profile modal cannot be pointed at a team you are not already in.
   {
     key: "manage",
     label: "Manage team",
@@ -90,6 +88,10 @@ export default function TeamsNav({ onNavigate }) {
   const {
     team: { orgs, isAdmin },
   } = useTasks();
+  // Only for opening the create-organization modal. Note that the setActive
+  // on this instance resolves without actually switching organization, which
+  // is why team switching below uses the hook's.
+  const clerk = useClerk();
   const { isLoaded, setActive } = useOrganizationList();
   const [expanded, setExpanded] = useState({});
   // Sidebar-local, deliberately not in the URL: which teams you can see in
@@ -133,6 +135,15 @@ export default function TeamsNav({ onNavigate }) {
     }
   }
 
+  // Clerk's own screens, opened over the page rather than replacing it.
+  // Creating a team and editing its members are short errands you come back
+  // from, and Clerk's modals lay themselves out for the viewport, so they fit
+  // a phone without this app arranging anything.
+  function createTeam() {
+    onNavigate?.();
+    clerk.openCreateOrganization({ afterCreateOrganizationUrl: "/team/tasks?team=:id" });
+  }
+
   const allTeamsActive = pathname.startsWith("/team/") && !current;
   const searching = teamQuery.trim().length > 0;
   const visibleOrgs = filterTeams(orgs, teamQuery);
@@ -158,16 +169,14 @@ export default function TeamsNav({ onNavigate }) {
 
         {/* Creating a team used to live only inside the Clerk switcher, which
             is where you go to change teams rather than to make one. */}
-        <Link
-          href="/team/new"
-          onClick={onNavigate}
-          className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors sm:py-2 ${
-            pathname.startsWith("/team/new") ? ACTIVE : IDLE
-          }`}
+        <button
+          type="button"
+          onClick={createTeam}
+          className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors sm:py-2 ${IDLE}`}
         >
           <Plus size={16} strokeWidth={2} />
           New team
-        </Link>
+        </button>
 
         {orgs.length === 0 ? (
           <p className="px-3 py-1 text-xs text-slate-400 dark:text-slate-500">

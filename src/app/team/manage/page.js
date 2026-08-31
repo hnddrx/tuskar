@@ -10,16 +10,16 @@ import { TEAM_PARAM, resolveTeamScope } from "@/lib/teamScope";
 
 // Managing a team — members, invitations, roles, the organization's own name.
 //
-// Clerk's own screen does all of that, and this page exists to give it a home
-// per team. Clerk's OrganizationSwitcher offers "Manage organization" for the
-// active organization only, and the component takes no prop to offer it for
-// the others, so the sidebar links here once per team instead: every team you
-// are in gets its own way in, without switching first and coming back.
+// This is a page rather than a modal, and not for want of trying. Clerk's
+// openOrganizationProfile() discards a setActive applied moments before and
+// snaps to whichever organization the session had persisted, so opening the
+// modal for a team you had not already switched to reliably showed the wrong
+// team's members. Measured, not assumed: setActive moved the active
+// organization correctly every time, and opening the modal moved it back.
 //
-// OrganizationProfile still renders whichever organization is active, so the
-// team named in the URL is made active on arrival. The sidebar link already
-// does this on its way out; doing it here too means a bookmarked or shared
-// link lands on the right team rather than on whichever was last selected.
+// Rendering OrganizationProfile inline on a page has no such behaviour: the
+// team named in the URL is made active on arrival and the component follows
+// it. New team is still a modal — CreateOrganization has nothing to snap to.
 export default function TeamManagePage() {
   return (
     <Suspense fallback={null}>
@@ -57,8 +57,6 @@ function TeamManageInner() {
         subtitle="Members, invitations and roles for this team."
       />
       <div className="px-4 py-6 sm:px-8">
-        {/* Clerk renders the active organization. While a switch is settling,
-            this briefly shows the previous team rather than nothing at all. */}
         <OrganizationProfile routing="hash" />
       </div>
     </div>
