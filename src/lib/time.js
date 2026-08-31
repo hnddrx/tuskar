@@ -9,6 +9,46 @@
 const MINUTE = 60;
 const HOUR = 60 * MINUTE;
 
+/**
+ * When something happened, in full: "31 Aug 2026, 09:54".
+ *
+ * Every record carries a creation stamp to the millisecond, but the task
+ * tables used to render `createdAt.slice(0, 10)` and throw the time away, and
+ * three pages each kept a private near-identical formatter that could drift.
+ * This is the one of them, so a timestamp reads the same wherever it appears.
+ *
+ * Locale-aware rather than fixed: the viewer's own ordering and 12- or 24-hour
+ * clock is what they can read at a glance. The year is always shown — a
+ * stamp that hides it is ambiguous the moment a record is a year old.
+ *
+ * Anything unparseable returns "—" rather than "Invalid Date": a malformed
+ * stamp is a gap in the data, and should look like one.
+ */
+export function formatDateTime(iso) {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** The date alone, for where a time would be noise — a day heading, say. */
+export function formatDate(iso) {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 /** "45s", "12m", "1h 23m", "2h" — and "—" for nothing worth showing. */
 export function formatDuration(seconds) {
   const total = Math.floor(Number(seconds));

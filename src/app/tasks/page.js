@@ -19,7 +19,7 @@ import { useConfirm } from "@/components/ConfirmProvider";
 import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/Badge";
 import { ProgressBar } from "@/components/ProgressBar";
 import { useNow } from "@/lib/useNow";
-import { formatDuration, totalForTask } from "@/lib/time";
+import { formatDateTime, formatDuration, totalForTask } from "@/lib/time";
 import TaskFormModal from "@/components/TaskFormModal";
 import PageHeader from "@/components/PageHeader";
 import ColumnsPicker from "@/components/ColumnsPicker";
@@ -163,7 +163,7 @@ const CELL_DEFS = {
   },
   createdAt: {
     className: "whitespace-nowrap px-4 py-2.5 text-slate-500 dark:text-slate-400",
-    render: (t) => (t.createdAt ? t.createdAt.slice(0, 10) : "—"),
+    render: (t) => formatDateTime(t.createdAt),
   },
   githubBranch: {
     className: "whitespace-nowrap px-4 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400",

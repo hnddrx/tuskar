@@ -18,7 +18,7 @@ import { StatusBadge, PriorityBadge, TypeBadge, SyncBadge } from "@/components/B
 import { ProgressBar } from "@/components/ProgressBar";
 import ScopeBadge from "@/components/ScopeBadge";
 import { useNow } from "@/lib/useNow";
-import { formatDuration, totalForTask } from "@/lib/time";
+import { formatDateTime, formatDuration, totalForTask } from "@/lib/time";
 import TeamTaskFormModal from "@/components/TeamTaskFormModal";
 import { TEAM_PARAM, resolveTeamScope, tasksForTeam } from "@/lib/teamScope";
 import PageHeader from "@/components/PageHeader";
@@ -144,7 +144,7 @@ const CELL_DEFS = {
   },
   createdAt: {
     className: "whitespace-nowrap px-4 py-2.5 text-slate-500 dark:text-slate-400",
-    render: (t) => (t.createdAt ? t.createdAt.slice(0, 10) : "—"),
+    render: (t) => formatDateTime(t.createdAt),
   },
   githubBranch: {
     className: "whitespace-nowrap px-4 py-2.5 font-mono text-xs text-slate-500 dark:text-slate-400",

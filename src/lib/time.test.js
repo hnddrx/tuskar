@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  formatDate,
+  formatDateTime,
   formatDuration,
   entrySeconds,
   totalSeconds,
@@ -130,4 +132,38 @@ test("each day carries its own total", () => {
 
 test("grouping nothing yields no days", () => {
   assert.deepEqual(groupByDay([]), []);
+});
+
+// ---------------------------------------------------------------------
+// Timestamps — one formatter, used everywhere a record shows when it began
+// ---------------------------------------------------------------------
+
+test("a creation stamp keeps its time, not just its date", () => {
+  // The whole point: the task tables used to slice the stamp to ten
+  // characters and lose the clock time entirely.
+  const shown = formatDateTime("2026-08-31T09:54:11.107Z");
+  assert.match(shown, /2026/);
+  assert.match(shown, /Aug/);
+  // Hours and minutes survive, whichever way the locale orders them.
+  assert.match(shown, /\d{1,2}:\d{2}/);
+});
+
+test("the year is always shown, so an old record is never ambiguous", () => {
+  assert.match(formatDateTime("2025-12-12T14:07:00.000Z"), /2025/);
+  assert.match(formatDateTime("2026-01-01T00:00:00.000Z"), /2026/);
+});
+
+test("a missing or malformed stamp reads as a gap, not as Invalid Date", () => {
+  assert.equal(formatDateTime(null), "—");
+  assert.equal(formatDateTime(undefined), "—");
+  assert.equal(formatDateTime(""), "—");
+  assert.equal(formatDateTime("not a date"), "—");
+  assert.equal(formatDate(null), "—");
+  assert.equal(formatDate("not a date"), "—");
+});
+
+test("the date-only form carries no clock time", () => {
+  const shown = formatDate("2026-08-31T09:54:11.107Z");
+  assert.match(shown, /2026/);
+  assert.doesNotMatch(shown, /\d{1,2}:\d{2}/);
 });

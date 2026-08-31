@@ -4,19 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { Trash2, Send, AtSign } from "lucide-react";
 import { SyncBadge } from "@/components/Badge";
 import { activeMentionQuery, matchMembers, insertMention, splitMentions } from "@/lib/mentions";
+import { formatDateTime } from "@/lib/time";
 
-function formatTs(iso) {
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return iso;
-  }
-}
+// Timestamps read the same here as everywhere else — see lib/time.
 
 // Renders @mentions as highlighted spans, leaving the rest as plain text.
 function CommentBody({ text, members }) {
@@ -220,7 +210,7 @@ export default function CommentThread({
                   {c.author}
                 </span>
                 <span className="text-xs text-slate-400 dark:text-slate-500">
-                  {formatTs(c.created)}
+                  {formatDateTime(c.created)}
                 </span>
                 <SyncBadge source={c.syncSource} />
               </div>

@@ -176,12 +176,12 @@ export async function setTeamPermissions(orgId, userId, permissions, rules, upda
   const normalized = normalizeRules(rules);
   await sql`
     insert into team_permissions (
-      org_id, user_id, permissions, record_rules, updated_at, updated_by
+      org_id, user_id, permissions, record_rules, created_at, updated_at, updated_by
     )
     values (
       ${orgId}, ${userId}, ${JSON.stringify(permissions)}::jsonb,
       ${normalized ? JSON.stringify(normalized) : null}::jsonb,
-      ${new Date().toISOString()}, ${updatedBy}
+      ${new Date().toISOString()}, ${new Date().toISOString()}, ${updatedBy}
     )
     on conflict (org_id, user_id) do update
       set permissions = excluded.permissions,

@@ -6,7 +6,7 @@ import PageHeader from "@/components/PageHeader";
 import { useTasks } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ConfirmProvider";
 import { ARCHIVE_TYPES, ARCHIVE_TYPE_KEYS } from "@/lib/archive";
-import { formatDuration } from "@/lib/time";
+import { formatDateTime, formatDuration } from "@/lib/time";
 
 // Everything you have deleted, in one place, with the two things you can do
 // to it: put it back, or destroy it. Nothing else in the app hard-deletes a
@@ -52,19 +52,7 @@ function detailOf(type, record) {
   }
 }
 
-function whenArchived(iso) {
-  if (!iso) return "";
-  try {
-    return new Date(iso).toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  } catch {
-    return "";
-  }
-}
+// Archived-at reads like every other timestamp in the app — see lib/time.
 
 export default function ArchivePage() {
   const {
@@ -210,7 +198,7 @@ export default function ArchivePage() {
                           </p>
                           <p className="truncate text-xs text-slate-400 dark:text-slate-500">
                             {detail ? `${detail} · ` : ""}
-                            archived {whenArchived(record.archivedAt)}
+                            archived {formatDateTime(record.archivedAt)}
                           </p>
                         </div>
                         {busy[key] ? (

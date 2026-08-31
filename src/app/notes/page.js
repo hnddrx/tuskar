@@ -12,6 +12,7 @@ import NoteTypePickerModal from "@/components/NoteTypePickerModal";
 import { generateNotesCompilationDoc } from "@/lib/noteDocGenerator";
 import { downloadMarkdown } from "@/lib/docGenerator";
 import { TYPE_ALL, buildNotesSearch, filterNotes, parseNotesSearchParams } from "@/lib/noteList";
+import { formatDateTime } from "@/lib/time";
 import ArchivedToggle, { ArchivedBadge } from "@/components/ArchivedToggle";
 
 const TYPE_FILTERS = [
@@ -214,6 +215,12 @@ function NotesPageInner() {
                     <p className="line-clamp-2 text-xs text-slate-400 dark:text-slate-500">
                       {note.body || "No content yet."}
                     </p>
+                    <p
+                      title={`Created ${formatDateTime(note.createdAt)}`}
+                      className="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500"
+                    >
+                      Created {formatDateTime(note.createdAt)}
+                    </p>
                   </Link>
                   <div className="absolute right-2 top-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <Link
@@ -265,6 +272,9 @@ function NotesPageInner() {
                         {linkedTask.ticketId}
                       </span>
                     )}
+                    <span className="hidden whitespace-nowrap text-xs text-slate-400 dark:text-slate-500 lg:block">
+                      {formatDateTime(note.createdAt)}
+                    </span>
                   </Link>
                   <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                     <Link

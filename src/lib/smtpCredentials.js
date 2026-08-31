@@ -84,11 +84,12 @@ export async function saveSmtpConfig(userId, input) {
   await sql`
     insert into smtp_config (
       user_id, label, host, port, security, username,
-      password_enc, from_name, from_email, updated_at
+      password_enc, from_name, from_email, updated_at, created_at
     ) values (
       ${userId}, ${payload.label}, ${payload.host}, ${payload.port},
       ${payload.security}, ${payload.username}, ${passwordEnc},
-      ${payload.fromName}, ${payload.fromEmail}, ${new Date().toISOString()}
+      ${payload.fromName}, ${payload.fromEmail},
+      ${new Date().toISOString()}, ${new Date().toISOString()}
     )
     on conflict (user_id) do update set
       label = excluded.label,

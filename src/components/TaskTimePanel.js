@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Play, Square, Trash2 } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
 import { useNow } from "@/lib/useNow";
-import { formatDuration, entrySeconds, totalForTask } from "@/lib/time";
+import { formatDateTime, formatDuration, entrySeconds, totalForTask } from "@/lib/time";
 import { formatCountdown } from "@/lib/pomodoro";
 
 /**
@@ -95,8 +95,11 @@ export default function TaskTimePanel({ taskId, scope = "personal" }) {
               key={entry.id}
               className="flex items-center gap-2 rounded px-1.5 py-1 text-xs transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
             >
-              <span className="text-slate-400 dark:text-slate-500">
-                {entry.startedAt.slice(0, 10)}
+              <span
+                className="whitespace-nowrap text-slate-400 dark:text-slate-500"
+                title={`Recorded ${formatDateTime(entry.createdAt)}`}
+              >
+                {formatDateTime(entry.startedAt)}
               </span>
               <span className="min-w-0 flex-1 truncate text-slate-500 dark:text-slate-400">
                 {entry.description || (entry.source === "pomodoro" ? "Pomodoro" : "")}

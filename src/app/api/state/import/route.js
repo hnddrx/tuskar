@@ -20,12 +20,15 @@ export async function POST(request) {
 
   const queries = [
     sql`
-      insert into board_config (user_id, statuses, priorities, types, assignees)
+      insert into board_config (
+        user_id, statuses, priorities, types, assignees, created_at
+      )
       values (
         ${userId}, ${JSON.stringify(config.statuses || [])}::jsonb,
         ${JSON.stringify(config.priorities || [])}::jsonb,
         ${JSON.stringify(config.types || [])}::jsonb,
-        ${JSON.stringify(config.assignees || [])}::jsonb
+        ${JSON.stringify(config.assignees || [])}::jsonb,
+        ${new Date().toISOString()}
       )
     `,
     ...tasks.map(

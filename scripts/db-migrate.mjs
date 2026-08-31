@@ -527,6 +527,38 @@ async function migrate() {
     await sql`alter table chat_presence add primary key (user_id)`;
   }
 
+  // Every stored row carries a creation stamp, not just the content records.
+  //
+  // The configuration tables never had one: you could see what a team's board
+  // was set to and when it last changed, but not when it was first set up.
+  //
+  // Existing rows are backfilled from updated_at where the table has one,
+  // which is a real moment in that row's life rather than an invention. The
+  // three that have no timestamp at all are stamped with the migration time,
+  // which is honestly approximate — it is the earliest moment we can prove.
+  //
+  // chat_presence and chat_reads are left alone on purpose: they hold a
+  // last-seen and a last-read marker, rewritten on every page view, so a
+  // creation date on them would be noise rather than a fact about a record.
+  const CONFIG_TABLES = [
+    { table: "board_config", from: null },
+    { table: "jira_config", from: null },
+    { table: "team_board_config", from: null },
+    { table: "smtp_config", from: "updated_at" },
+    { table: "team_permissions", from: "updated_at" },
+  ];
+  const migratedAt = new Date().toISOString();
+  for (const { table, from } of CONFIG_TABLES) {
+    await sql.query(`alter table ${table} add column if not exists created_at text`);
+    await sql.query(
+      from
+        ? `update ${table} set created_at = coalesce(${from}, $1) where created_at is null`
+        : `update ${table} set created_at = $1 where created_at is null`,
+      [migratedAt]
+    );
+  }
+  console.log(`Creation stamps: ${CONFIG_TABLES.length} configuration tables backfilled.`);
+
   console.log(
     "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries, smtp_config, chat_messages, chat_reads, chat_presence, attachments, team_permissions ready. Archiving enabled on: " +
       ARCHIVABLE_TABLES.join(", ") +

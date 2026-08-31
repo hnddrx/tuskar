@@ -36,13 +36,16 @@ export async function PUT(request) {
   const merged = { ...base, [key]: values };
 
   await sql`
-    insert into board_config (user_id, statuses, priorities, types, assignees, status_progress)
+    insert into board_config (
+      user_id, statuses, priorities, types, assignees, status_progress, created_at
+    )
     values (
       ${userId}, ${JSON.stringify(merged.statuses)}::jsonb,
       ${JSON.stringify(merged.priorities)}::jsonb,
       ${JSON.stringify(merged.types)}::jsonb,
       ${JSON.stringify(merged.assignees)}::jsonb,
-      ${JSON.stringify(merged.statusProgress)}::jsonb
+      ${JSON.stringify(merged.statusProgress)}::jsonb,
+      ${new Date().toISOString()}
     )
     on conflict (user_id) do update set
       statuses = excluded.statuses,

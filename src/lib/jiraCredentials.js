@@ -88,10 +88,11 @@ export async function saveJiraCredentials(userId, input) {
   await sql`
     insert into jira_config (
       user_id, base_url, email, project, jql,
-      start_date_field_id, github_branch_field_id, api_token_enc
+      start_date_field_id, github_branch_field_id, api_token_enc, created_at
     ) values (
       ${userId}, ${payload.baseUrl}, ${payload.email}, ${payload.project}, ${payload.jql},
-      ${payload.startDateFieldId}, ${payload.githubBranchFieldId}, ${tokenEnc}
+      ${payload.startDateFieldId}, ${payload.githubBranchFieldId}, ${tokenEnc},
+      ${new Date().toISOString()}
     )
     on conflict (user_id) do update set
       base_url = excluded.base_url,

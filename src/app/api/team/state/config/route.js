@@ -46,11 +46,14 @@ export async function PUT(request) {
   const merged = { ...base, [key]: values };
 
   await sql`
-    insert into team_board_config (org_id, statuses, priorities, types, status_progress)
+    insert into team_board_config (
+      org_id, statuses, priorities, types, status_progress, created_at
+    )
     values (
       ${orgId}, ${JSON.stringify(merged.statuses)}::jsonb,
       ${JSON.stringify(merged.priorities)}::jsonb, ${JSON.stringify(merged.types)}::jsonb,
-      ${JSON.stringify(merged.statusProgress)}::jsonb
+      ${JSON.stringify(merged.statusProgress)}::jsonb,
+      ${new Date().toISOString()}
     )
     on conflict (org_id) do update set
       statuses = excluded.statuses,

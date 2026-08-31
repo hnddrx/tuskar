@@ -21,6 +21,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { ATTACHMENT_ACCEPT, formatFileSize } from "@/lib/attachments";
+import { formatDateTime } from "@/lib/time";
 import ConfigListEditor from "@/components/ConfigListEditor";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import { NoteTypeBadge } from "@/components/Badge";
@@ -640,7 +641,7 @@ function AttachmentsPanel({ noteId, mode, attachments, onAttachmentsChange }) {
                     >
                       {a.filename}
                       <span className="ml-1 text-slate-400 dark:text-slate-500">
-                        {formatFileSize(a.size)}
+                        {formatFileSize(a.size)} · {formatDateTime(a.createdAt)}
                       </span>
                     </button>
                   )}
@@ -653,7 +654,7 @@ function AttachmentsPanel({ noteId, mode, attachments, onAttachmentsChange }) {
                     >
                       {a.filename}
                       <span className="ml-1 text-slate-400 dark:text-slate-500">
-                        {formatFileSize(a.size)}
+                        {formatFileSize(a.size)} · {formatDateTime(a.createdAt)}
                       </span>
                     </a>
                   )}
