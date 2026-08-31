@@ -3,6 +3,11 @@ import { put } from "@vercel/blob";
 import { getSql, rowToNote } from "@/lib/db";
 import { newId, nowIso } from "@/lib/id";
 import { classifyAttachment, MAX_ATTACHMENT_SIZE } from "@/lib/attachments";
+import {
+  recordAttachment,
+  safeAttachmentName,
+  syncNoteAttachments,
+} from "@/lib/attachmentStore";
 
 export async function POST(request, { params }) {
   const { userId } = await auth();
@@ -10,7 +15,7 @@ export async function POST(request, { params }) {
   const sql = getSql();
 
   const [existing] = await sql`
-    select * from notes where id = ${id} and user_id = ${userId}
+    select id from notes where id = ${id} and user_id = ${userId}
   `;
   if (!existing) {
     return Response.json({ error: "Not found" }, { status: 404 });
@@ -36,7 +41,7 @@ export async function POST(request, { params }) {
 
   const contentType = file.type || "application/octet-stream";
   const attachmentId = newId("attachment");
-  const safeName = (file.name || kind).replace(/[^\w.\-]/g, "_").slice(-80);
+  const safeName = safeAttachmentName(file.name, kind);
   const pathname = `notes/${userId}/${id}/${attachmentId}-${safeName}`;
 
   const blob = await put(pathname, file, {
@@ -45,24 +50,24 @@ export async function POST(request, { params }) {
     maximumSizeInBytes: MAX_ATTACHMENT_SIZE,
   });
 
-  const attachment = {
+  // The registry is written first and the note's `attachments` jsonb is then
+  // rebuilt from it, so the projection can never claim a file the table does
+  // not have — see lib/attachmentStore.
+  await recordAttachment(sql, {
     id: attachmentId,
+    ownerKind: "note",
+    ownerId: id,
+    userId,
+    orgId: null,
+    uploadedBy: userId,
     filename: safeName,
     contentType,
     size: file.size,
     kind,
     pathname: blob.pathname,
     createdAt: nowIso(),
-  };
+  });
 
-  const note = rowToNote(existing);
-  const attachments = [...(note.attachments || []), attachment];
-
-  const [row] = await sql`
-    update notes set attachments = ${JSON.stringify(attachments)}::jsonb
-    where id = ${id} and user_id = ${userId}
-    returning *
-  `;
-
+  const row = await syncNoteAttachments(sql, id, userId);
   return Response.json(rowToNote(row), { status: 201 });
 }

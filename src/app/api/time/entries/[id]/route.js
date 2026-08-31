@@ -62,7 +62,27 @@ export async function DELETE(_request, { params }) {
   const { id } = await params;
   const sql = getSql();
 
-  await sql`delete from time_entries where id = ${id} and user_id = ${userId}`;
+  // Archives rather than deletes — see lib/archive. An archived entry stops
+  // counting towards a task's tracked time, and counts again if restored.
+  // A running entry is closed as it is archived. Left open it stays invisibly
+  // running: the lists hide it, so nothing shows a timer going, and the next
+  // timer started would close it and stamp it with all the time in between.
+  // Closing it here means restoring gives back the entry that was archived.
+  const archivedAt = new Date().toISOString();
+  await sql`
+    update time_entries
+    set archived_at = ${archivedAt},
+        ended_at = coalesce(ended_at, ${archivedAt}),
+        duration_seconds = case
+          when ended_at is null then greatest(
+            0,
+            floor(extract(epoch from (${archivedAt}::timestamptz - started_at::timestamptz)))
+          )::integer
+          else duration_seconds
+        end,
+        updated_at = ${archivedAt}
+    where id = ${id} and user_id = ${userId}
+  `;
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, archivedAt });
 }

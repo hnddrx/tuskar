@@ -32,6 +32,7 @@ export function rowToTask(row) {
     syncSource: row.sync_source,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    archivedAt: row.archived_at || null,
   };
 }
 
@@ -49,6 +50,7 @@ export function rowToNote(row) {
     attachments: row.attachments || [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    archivedAt: row.archived_at || null,
   };
 }
 
@@ -63,6 +65,7 @@ export function rowToComment(row) {
     text: row.text,
     jiraIssueLink: row.jira_issue_link,
     syncSource: row.sync_source,
+    archivedAt: row.archived_at || null,
   };
 }
 
@@ -81,6 +84,7 @@ export function rowToCalendarEvent(row) {
     createdBy: row.created_by ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    archivedAt: row.archived_at || null,
   };
 }
 
@@ -100,6 +104,7 @@ export function rowToTimeEntry(row) {
     source: row.source,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    archivedAt: row.archived_at || null,
   };
 }
 
@@ -167,6 +172,7 @@ export function rowToTeamTask(row, membersById = {}, orgNames = {}) {
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    archivedAt: row.archived_at || null,
   };
 }
 
@@ -186,6 +192,7 @@ export function rowToTeamComment(row, membersById = {}) {
     mentions: Array.isArray(row.mentions) ? row.mentions : [],
     jiraIssueLink: row.jira_issue_link,
     syncSource: row.sync_source,
+    archivedAt: row.archived_at || null,
   };
 }
 

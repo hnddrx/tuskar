@@ -2,16 +2,29 @@ import { auth } from "@clerk/nextjs/server";
 import { del, get } from "@vercel/blob";
 import { getSql, rowToNote } from "@/lib/db";
 import { dispositionFor } from "@/lib/attachments";
+import {
+  removeAttachment,
+  rowToAttachment,
+  syncNoteAttachments,
+} from "@/lib/attachmentStore";
 
-async function findAttachment(sql, id, attachmentId, userId) {
-  const [existing] = await sql`
-    select * from notes where id = ${id} and user_id = ${userId}
+/**
+ * One attachment, proven to belong to a note this user owns.
+ *
+ * The join is the ownership check: the attachment must be recorded against
+ * this note, and the note must be this user's. Holding an attachment id is
+ * never enough on its own.
+ */
+async function findNoteAttachment(sql, noteId, attachmentId, userId) {
+  const [row] = await sql`
+    select a.* from attachments a
+    join notes n on n.id = a.owner_id
+    where a.id = ${attachmentId}
+      and a.owner_kind = 'note'
+      and a.owner_id = ${noteId}
+      and n.user_id = ${userId}
   `;
-  if (!existing) return null;
-  const note = rowToNote(existing);
-  const attachment = (note.attachments || []).find((a) => a.id === attachmentId);
-  if (!attachment) return null;
-  return { note, attachment };
+  return row ? rowToAttachment(row) : null;
 }
 
 // Streams a private attachment back only to its owner — never a public,
@@ -26,20 +39,20 @@ export async function GET(_request, { params }) {
   const { id, attachmentId } = await params;
   const sql = getSql();
 
-  const found = await findAttachment(sql, id, attachmentId, userId);
-  if (!found) {
+  const attachment = await findNoteAttachment(sql, id, attachmentId, userId);
+  if (!attachment) {
     return new Response("Not found", { status: 404 });
   }
 
-  const result = await get(found.attachment.pathname, { access: "private" });
+  const result = await get(attachment.pathname, { access: "private" });
   if (!result || result.statusCode !== 200) {
     return new Response("Not found", { status: 404 });
   }
 
   return new Response(result.stream, {
     headers: {
-      "Content-Type": found.attachment.contentType,
-      "Content-Disposition": `${dispositionFor(found.attachment.kind)}; filename="${found.attachment.filename}"`,
+      "Content-Type": attachment.contentType,
+      "Content-Disposition": `${dispositionFor(attachment.kind)}; filename="${attachment.filename}"`,
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, max-age=3600",
     },
@@ -51,19 +64,17 @@ export async function DELETE(_request, { params }) {
   const { id, attachmentId } = await params;
   const sql = getSql();
 
-  const found = await findAttachment(sql, id, attachmentId, userId);
-  if (!found) {
+  const attachment = await findNoteAttachment(sql, id, attachmentId, userId);
+  if (!attachment) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  await del(found.attachment.pathname).catch(() => {});
+  // Unlike the records the Archive holds, an attachment is removed outright:
+  // the blob goes, the registry row goes, and the note's projection is rebuilt
+  // from what is left.
+  await del(attachment.pathname).catch(() => {});
+  await removeAttachment(sql, attachmentId);
 
-  const attachments = found.note.attachments.filter((a) => a.id !== attachmentId);
-  const [row] = await sql`
-    update notes set attachments = ${JSON.stringify(attachments)}::jsonb
-    where id = ${id} and user_id = ${userId}
-    returning *
-  `;
-
+  const row = await syncNoteAttachments(sql, id, userId);
   return Response.json(rowToNote(row));
 }

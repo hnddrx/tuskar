@@ -27,6 +27,7 @@ import TaskFiltersPanel, {
   DEFAULT_FILTERS,
   countActiveFilters,
 } from "@/components/TaskFiltersPanel";
+import ArchivedToggle from "@/components/ArchivedToggle";
 import {
   PAGE_SIZES,
   buildTasksSearch,
@@ -177,7 +178,7 @@ export default function TeamTasksPage() {
 
 function TeamTasksPageInner() {
   const {
-    team: { tasks: rawTasks, comments, config, configs, orgs, deleteTask, orgId },
+    team: { allTasks: rawTasks, comments, config, configs, orgs, deleteTask, orgId, can },
     time: { entries: timeEntries },
   } = useTasks();
   // Coarse tick — see the personal table.
@@ -199,7 +200,7 @@ function TeamTasksPageInner() {
       })),
     [rawTasks, teamScope, timeEntries, timeNow]
   );
-  const { query, filters, sort, page, pageSize } = useMemo(
+  const { query, filters, sort, page, pageSize, showArchived } = useMemo(
     () => parseTasksSearchParams(searchParams),
     [searchParams]
   );
@@ -210,7 +211,7 @@ function TeamTasksPageInner() {
   const [columnsHydrated, setColumnsHydrated] = useState(false);
 
   function pushState(patch) {
-    const next = { query, filters, sort, page, pageSize, ...patch };
+    const next = { query, filters, sort, page, pageSize, showArchived, ...patch };
     const params = new URLSearchParams(buildTasksSearch(next));
     if (teamScope) params.set(TEAM_PARAM, teamScope);
     const qs = params.toString();
@@ -259,9 +260,12 @@ function TeamTasksPageInner() {
   const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
 
   const sorted = useMemo(
-    () => orderTasks(tasks, { query, filters, sort }, commentsByTask, { assigneeNames }),
-    [tasks, query, filters, sort, commentsByTask]
+    () => orderTasks(tasks, { query, filters, sort, showArchived }, commentsByTask, {
+      assigneeNames,
+    }),
+    [tasks, query, filters, sort, showArchived, commentsByTask]
   );
+  const archivedCount = useMemo(() => tasks.filter((t) => t.archivedAt).length, [tasks]);
 
   // How many teams these tasks actually come from — the per-row badge says
   // which one, this says how wide the list is.
@@ -276,6 +280,11 @@ function TeamTasksPageInner() {
 
   // Where a new task would go: the team on screen, else the selected one.
   const createIn = teamScope || orgId;
+  // The routes enforce this too — disabling the control just avoids offering
+  // an action that would come back refused. Edit and delete are checked per
+  // row instead, against the team that row's task belongs to: this table can
+  // show several teams at once.
+  const canCreate = can("tasks.create", createIn);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -328,14 +337,22 @@ function TeamTasksPageInner() {
         actions={
           <button
             onClick={openNew}
-            disabled={!createIn}
-            title={createIn ? undefined : "Open a team in the sidebar to add a task to it"}
+            disabled={!createIn || !canCreate}
+            title={
+              !createIn
+                ? "Open a team in the sidebar to add a task to it"
+                : canCreate
+                  ? undefined
+                  : "You don't have permission to add tasks to this team"
+            }
             className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
           >
             <Plus size={16} /> New task
           </button>
         }
-        mobileFab={filtersOpen ? undefined : { onClick: openNew, label: "New task" }}
+        mobileFab={
+          filtersOpen || !canCreate ? undefined : { onClick: openNew, label: "New task" }
+        }
       >
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1 sm:flex-none sm:w-72">
@@ -377,6 +394,11 @@ function TeamTasksPageInner() {
           )}
 
           <div className="ml-auto flex items-center gap-2">
+            <ArchivedToggle
+              count={archivedCount}
+              active={showArchived}
+              onChange={(v) => pushState({ showArchived: v, page: 1 })}
+            />
             <ColumnsPicker
               columns={ALL_COLUMNS}
               visibleKeys={visibleKeys}
@@ -441,21 +463,32 @@ function TeamTasksPageInner() {
                       <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100">
                         <button
                           onClick={() => openEdit(t)}
-                          className="rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 transition-colors dark:text-slate-400 dark:hover:bg-slate-800"
+                          disabled={!can("tasks.edit", t.orgId)}
+                          title={
+                            can("tasks.edit", t.orgId)
+                              ? undefined
+                              : "You don't have permission to edit tasks in this team"
+                          }
+                          className="rounded px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 transition-colors disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-400 dark:hover:bg-slate-800"
                         >
                           Edit
                         </button>
                         <button
                           onClick={async () => {
                             const ok = await confirm({
-                              title: `Delete "${t.name}"?`,
-                              message: "This cannot be undone.",
-                              confirmLabel: "Delete",
-                              danger: true,
+                              title: `Archive "${t.name}"?`,
+                              message: "It moves to the Archive, where you can restore it or delete it for good.",
+                              confirmLabel: "Archive",
                             });
                             if (ok) deleteTask(t.id);
                           }}
-                          className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors dark:text-slate-500"
+                          disabled={!can("tasks.delete", t.orgId)}
+                          title={
+                            can("tasks.delete", t.orgId)
+                              ? undefined
+                              : "You don't have permission to archive tasks in this team"
+                          }
+                          className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-500"
                         >
                           <Trash2 size={14} />
                         </button>

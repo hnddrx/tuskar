@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { MessageCircle, Hash, X, ArrowLeft } from "lucide-react";
+import { MessageCircle, Hash, X, ArrowLeft, Search } from "lucide-react";
 import { useChat } from "@/context/ChatContext";
+import { filterConversations } from "@/lib/chat";
 import { useConversation } from "@/lib/useConversation";
 import ChatMessages, { initials, PresenceDot } from "@/components/ChatMessages";
 import ChatComposer from "@/components/ChatComposer";
@@ -67,9 +68,14 @@ export default function ChatDock() {
 
 function ConversationList() {
   const { conversations, members, serverNow, open, closePanel } = useChat();
+  const [search, setSearch] = useState("");
+  const searching = search.trim().length > 0;
 
-  // Unread first, then most recently active.
-  const ordered = [...conversations].sort((a, b) => {
+  // Unread first, then most recently active. Every teammate already has a DM
+  // entry, so filtering the conversations is also how you find a person.
+  // Copied before sorting: with an empty search filterConversations hands
+  // back the context's own array, and sorting in place would reorder it.
+  const ordered = [...filterConversations(conversations, search)].sort((a, b) => {
     if ((b.unread || 0) !== (a.unread || 0)) return (b.unread || 0) - (a.unread || 0);
     return String(b.lastAt || "").localeCompare(String(a.lastAt || ""));
   });
@@ -91,10 +97,40 @@ function ConversationList() {
         </div>
       </header>
 
+      {conversations.length > 0 && (
+        <div className="border-b border-slate-200 p-2 dark:border-slate-800">
+          <div className="relative">
+            <Search
+              size={13}
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+            />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search people and channels…"
+              aria-label="Search people and channels"
+              className="w-full rounded-md border border-slate-200 bg-white py-1.5 pl-7 pr-7 text-xs text-slate-700 transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-slate-500"
+            />
+            {searching && (
+              <button
+                onClick={() => setSearch("")}
+                aria-label="Clear search"
+                title="Clear"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto">
         {ordered.length === 0 && (
           <p className="px-3 py-3 text-xs text-slate-400 dark:text-slate-500">
-            No conversations yet.
+            {searching
+              ? `No one and no channel matches “${search.trim()}”.`
+              : "No conversations yet."}
           </p>
         )}
         {ordered.map((c) => {

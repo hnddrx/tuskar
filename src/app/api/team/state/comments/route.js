@@ -5,6 +5,7 @@ import { buildMentionEmail } from "@/lib/mentionEmail";
 import { getSmtpConfig, getSmtpConfigForOrg } from "@/lib/smtpCredentials";
 import { sendViaSmtp } from "@/lib/smtpTransport";
 import { formatSender } from "@/lib/smtp";
+import { requireTeamPermission } from "@/lib/teamPermissions";
 
 // The people a comment mentions are worked out here from the comment text and
 // the team's real membership — never taken from the request. Whoever controls
@@ -57,6 +58,9 @@ export async function POST(request) {
   if (!orgId || !orgIds.includes(orgId)) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
+
+  const gate = await requireTeamPermission(userId, orgId, "comments.create");
+  if (gate.error) return gate.error;
 
   const { ids: mentions, recipients } = await resolveMentions(
     orgId,

@@ -3,23 +3,36 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Users, KanbanSquare, MessagesSquare, ChevronRight } from "lucide-react";
+import {
+  Users,
+  KanbanSquare,
+  MessagesSquare,
+  ShieldCheck,
+  ChevronRight,
+  Search,
+  X,
+} from "lucide-react";
 import { useOrganizationList } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 import { roomOrgId } from "@/lib/chat";
 import {
   TEAM_PARAM,
   CHAT_PARAM,
+  filterTeams,
   teamTasksHref,
   teamBoardHref,
   teamChatHref,
+  teamAccessHref,
 } from "@/lib/teamScope";
 
-// The three destinations that exist once per team.
+// The destinations that exist once per team.
 const TEAM_VIEWS = [
   { key: "tasks", label: "Team Tasks", icon: Users, href: teamTasksHref, at: "/team/tasks" },
   { key: "board", label: "Team Board", icon: KanbanSquare, href: teamBoardHref, at: "/team/board" },
   { key: "chat", label: "Chat", icon: MessagesSquare, href: teamChatHref, at: "/chat" },
+  // Listed for everyone, not just admins: a member who cannot change access
+  // can still see what theirs is, without having to ask.
+  { key: "access", label: "Team Access", icon: ShieldCheck, href: teamAccessHref, at: "/team/access" },
 ];
 
 // Matches the indigo the rest of the app uses for team scope.
@@ -58,6 +71,9 @@ export default function TeamsNav({ onNavigate }) {
   } = useTasks();
   const { isLoaded, setActive } = useOrganizationList();
   const [expanded, setExpanded] = useState({});
+  // Sidebar-local, deliberately not in the URL: which teams you can see in
+  // the nav is a way of finding one, not part of what the page is showing.
+  const [teamQuery, setTeamQuery] = useState("");
 
   // Read after mount: the server has no localStorage, and rendering a
   // different tree there than here would be a hydration mismatch.
@@ -97,6 +113,8 @@ export default function TeamsNav({ onNavigate }) {
   }
 
   const allTeamsActive = pathname.startsWith("/team/") && !current;
+  const searching = teamQuery.trim().length > 0;
+  const visibleOrgs = filterTeams(orgs, teamQuery);
 
   return (
     <div className="mt-4">
@@ -117,13 +135,43 @@ export default function TeamsNav({ onNavigate }) {
           All teams
         </Link>
 
-        {orgs.length === 0 && (
+        {orgs.length === 0 ? (
           <p className="px-3 py-1 text-xs text-slate-400 dark:text-slate-500">
             You&apos;re not in a team yet.
           </p>
+        ) : (
+          <div className="relative px-1 py-1">
+            <Search
+              size={13}
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+            />
+            <input
+              value={teamQuery}
+              onChange={(e) => setTeamQuery(e.target.value)}
+              placeholder="Search teams…"
+              aria-label="Search teams"
+              className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-8 pr-7 text-xs text-slate-700 transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-slate-500"
+            />
+            {searching && (
+              <button
+                onClick={() => setTeamQuery("")}
+                aria-label="Clear team search"
+                title="Clear"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
         )}
 
-        {orgs.map((org) => {
+        {orgs.length > 0 && visibleOrgs.length === 0 && (
+          <p className="px-3 py-1 text-xs text-slate-400 dark:text-slate-500">
+            No team matches &ldquo;{teamQuery.trim()}&rdquo;.
+          </p>
+        )}
+
+        {visibleOrgs.map((org) => {
           const open = isOpen(org.id);
           return (
             <div key={org.id}>

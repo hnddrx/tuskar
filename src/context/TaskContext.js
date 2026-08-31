@@ -14,6 +14,8 @@ import seed from "@/data/seed.json";
 import { newId, nowIso, todayIso } from "@/lib/id";
 import { STORAGE_KEY } from "@/lib/constants";
 import { withComputedProgress, DEFAULT_STATUS_PROGRESS } from "@/lib/progress";
+import { archiveById, archiveWhere, onlyArchived, withoutArchived } from "@/lib/archive";
+import { hasPermission } from "@/lib/permissions";
 import { useConfirm } from "@/components/ConfirmProvider";
 
 const TaskContext = createContext(null);
@@ -95,6 +97,9 @@ export function TaskProvider({ children }) {
     configs: {},
     defaults: EMPTY_TEAM_CONFIG,
     orgs: [],
+    // What this person may do, per team. Used only to decide which controls to
+    // draw — the API enforces the same rules regardless of what is sent.
+    permissions: {},
   });
   // Pulled out so callbacks can depend on the team list alone rather than on
   // every task edit. Preserved by reference across the other setTeam calls.
@@ -255,6 +260,7 @@ export function TaskProvider({ children }) {
           configs: server.configs || {},
           defaults: server.defaults || EMPTY_TEAM_CONFIG,
           orgs: server.orgs || [],
+          permissions: server.permissions || {},
         });
         setTeamEvents(events);
       } catch (err) {
@@ -328,13 +334,20 @@ export function TaskProvider({ children }) {
     );
   }, [syncCall]);
 
+  // Stamps rather than removes. The Archive page is derived from these same
+  // arrays, so dropping the record here would delete it out of the archive as
+  // well — it would only reappear once a reload fetched it back with its
+  // stamp. The task and its comments share one stamp, as the route writes
+  // them, so restoring the task brings back exactly that thread.
+  //
+  // Subtasks keep their parentId: the route keeps parent_id too, because
+  // archiving is reversible and orphaning them would lose the tree.
   const deleteTask = useCallback((id) => {
+    const archivedAt = nowIso();
     setPersonal((s) => ({
       ...s,
-      tasks: s.tasks
-        .filter((t) => t.id !== id)
-        .map((t) => (t.parentId === id ? { ...t, parentId: null } : t)),
-      comments: s.comments.filter((c) => c.ticketId !== id),
+      tasks: archiveById(s.tasks, id, archivedAt),
+      comments: archiveWhere(s.comments, (c) => c.ticketId === id, archivedAt),
     }));
     syncCall(() =>
       fetch(`/api/state/tasks/${id}`, { method: "DELETE" }).then((res) => {
@@ -377,9 +390,12 @@ export function TaskProvider({ children }) {
   }, [syncCall]);
 
   const deleteComment = useCallback((commentId, taskId) => {
+    const archivedAt = nowIso();
     setPersonal((s) => ({
       ...s,
-      comments: s.comments.filter((c) => c.id !== commentId),
+      // Archived, not dropped; the count still falls, because it reports the
+      // comments on the task now and an archived one is not one of them.
+      comments: archiveById(s.comments, commentId, archivedAt),
       tasks: s.tasks.map((t) =>
         t.id === taskId
           ? { ...t, commentCount: Math.max(0, (t.commentCount || 0) - 1) }
@@ -544,7 +560,8 @@ export function TaskProvider({ children }) {
       return record;
     },
     remove: (id) => {
-      setEvents((list) => list.filter((e) => e.id !== id));
+      const archivedAt = nowIso();
+      setEvents((list) => archiveById(list, id, archivedAt));
       syncCall(() =>
         fetch(`${basePath}/${id}`, { method: "DELETE" }).then((res) => {
           if (!res.ok) throw new Error("Failed to delete event");
@@ -644,13 +661,13 @@ export function TaskProvider({ children }) {
     );
   }, [syncCall, members]);
 
+  // Stamped rather than removed, for the same reason deleteTask is.
   const deleteTeamTask = useCallback((id) => {
+    const archivedAt = nowIso();
     setTeam((s) => ({
       ...s,
-      tasks: s.tasks
-        .filter((t) => t.id !== id)
-        .map((t) => (t.parentId === id ? { ...t, parentId: null } : t)),
-      comments: s.comments.filter((c) => c.ticketId !== id),
+      tasks: archiveById(s.tasks, id, archivedAt),
+      comments: archiveWhere(s.comments, (c) => c.ticketId === id, archivedAt),
     }));
     syncCall(() =>
       fetch(`/api/team/state/tasks/${id}`, { method: "DELETE" }).then((res) => {
@@ -693,9 +710,10 @@ export function TaskProvider({ children }) {
   }, [syncCall, user]);
 
   const deleteTeamComment = useCallback((commentId, taskId) => {
+    const archivedAt = nowIso();
     setTeam((s) => ({
       ...s,
-      comments: s.comments.filter((c) => c.id !== commentId),
+      comments: archiveById(s.comments, commentId, archivedAt),
       tasks: s.tasks.map((t) =>
         t.id === taskId
           ? { ...t, commentCount: Math.max(0, (t.commentCount || 0) - 1) }
@@ -755,6 +773,60 @@ export function TaskProvider({ children }) {
   const teamTasks = useMemo(
     () => withComputedProgress(team.tasks, activeTeamConfig.statusProgress),
     [team.tasks, activeTeamConfig]
+  );
+
+  // Archived records travel in the same payload as live ones, but the
+  // context hands out the live set by default. Every count, total, board
+  // column and picker in the app reads these, and a screen that has not
+  // thought about archiving should never be the place an archived record
+  // reappears — opting in is a deliberate act, under `archived`.
+  const liveTasks = useMemo(() => withoutArchived(personalTasks), [personalTasks]);
+  const liveTeamTasks = useMemo(() => withoutArchived(teamTasks), [teamTasks]);
+  const liveComments = useMemo(() => withoutArchived(personal.comments), [personal.comments]);
+  const liveTeamComments = useMemo(() => withoutArchived(team.comments), [team.comments]);
+  const liveNotes = useMemo(() => withoutArchived(personal.notes), [personal.notes]);
+  const livePersonalEvents = useMemo(() => withoutArchived(personalEvents), [personalEvents]);
+  const liveTeamEvents = useMemo(() => withoutArchived(teamEvents), [teamEvents]);
+  const liveTimeEntries = useMemo(() => withoutArchived(timeEntries), [timeEntries]);
+
+  /**
+   * May this person do `permission` in a team — the selected one unless
+   * another is named, because a page can show a team other than the one
+   * switched to.
+   *
+   * This decides which controls are drawn, and nothing more. Every route
+   * checks the same permission itself, so a hidden button is a courtesy, not
+   * the boundary.
+   */
+  const canInTeam = useCallback(
+    (permission, forOrgId = null) =>
+      hasPermission(team.permissions?.[forOrgId || orgId] || [], permission),
+    [team.permissions, orgId]
+  );
+
+  // Everything archived, grouped by record type — what the Archive page
+  // renders, and what an in-list "Show archived" toggle draws from.
+  const archived = useMemo(
+    () => ({
+      task: onlyArchived(personalTasks),
+      teamTask: onlyArchived(teamTasks),
+      note: onlyArchived(personal.notes),
+      comment: onlyArchived(personal.comments),
+      teamComment: onlyArchived(team.comments),
+      event: onlyArchived(personalEvents),
+      teamEvent: onlyArchived(teamEvents),
+      timeEntry: onlyArchived(timeEntries),
+    }),
+    [
+      personalTasks,
+      teamTasks,
+      personal.notes,
+      personal.comments,
+      team.comments,
+      personalEvents,
+      teamEvents,
+      timeEntries,
+    ]
   );
 
   // ---------------------------------------------------------------------
@@ -845,20 +917,84 @@ export function TaskProvider({ children }) {
     [timeRequest]
   );
 
+  // Restoring and permanently deleting go through one route for every record
+  // type (api/archive), so this is one pair of actions rather than eight.
+  // Both re-sync afterwards: a restored record has to reappear in its list,
+  // and a purged one has to leave the Archive page.
+  // Restoring or purging can touch any table, and which one is not worth
+  // tracking — a re-read of everything is a handful of requests on an action
+  // taken a few times a session, not something that runs while you work.
+  // Each route is caught on its own so one failure cannot blank the rest.
+  const refreshEverything = useCallback(async () => {
+    const [state, teamState, events, teamEvents_, entries] = await Promise.all([
+      fetchJson("/api/state").catch(() => null),
+      fetchJson("/api/team/state").catch(() => null),
+      fetchJson("/api/calendar/events").catch(() => null),
+      fetchJson("/api/team/calendar/events").catch(() => null),
+      fetchJson("/api/time/entries").catch(() => null),
+    ]);
+
+    if (state) {
+      setPersonal({
+        tasks: state.tasks,
+        comments: state.comments,
+        notes: state.notes || [],
+        config: state.config,
+      });
+    }
+    if (teamState) {
+      setTeam((prev) => ({
+        ...prev,
+        tasks: teamState.tasks,
+        comments: teamState.comments,
+        configs: teamState.configs || {},
+        defaults: teamState.defaults || EMPTY_TEAM_CONFIG,
+        orgs: teamState.orgs || [],
+        permissions: teamState.permissions || {},
+      }));
+    }
+    if (events) setPersonalEvents(events);
+    if (teamEvents_) setTeamEvents(teamEvents_);
+    if (entries) setTimeEntries(entries);
+  }, []);
+
+  const restoreArchived = useCallback(
+    async (type, id) => {
+      const res = await fetch(`/api/archive/${type}/${id}`, { method: "POST" });
+      if (!res.ok) throw new Error("Couldn't restore that");
+      await refreshEverything();
+    },
+    [refreshEverything]
+  );
+
+  const deleteArchivedForever = useCallback(
+    async (type, id) => {
+      const res = await fetch(`/api/archive/${type}/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Couldn't delete that");
+      await refreshEverything();
+    },
+    [refreshEverything]
+  );
+
   const runningEntry = useMemo(
-    () => timeEntries.find((e) => !e.endedAt) || null,
-    [timeEntries]
+    () => liveTimeEntries.find((e) => !e.endedAt) || null,
+    [liveTimeEntries]
   );
 
   const value = useMemo(
     () => ({
       personal: {
-        tasks: personalTasks,
-        comments: personal.comments,
-        notes: personal.notes,
+        tasks: liveTasks,
+        comments: liveComments,
+        notes: liveNotes,
+        // Live plus archived — for the Notes and Task lists' "Show archived".
+        allTasks: personalTasks,
+        allComments: personal.comments,
+        allNotes: personal.notes,
         refreshNotes,
         config: personal.config,
-        events: personalEvents,
+        events: livePersonalEvents,
+        allEvents: personalEvents,
         hydrated: personalHydrated,
         addEvent: addPersonalEvent,
         deleteEvent: deletePersonalEvent,
@@ -872,12 +1008,17 @@ export function TaskProvider({ children }) {
         resetToSeed,
       },
       team: {
-        tasks: teamTasks,
-        comments: team.comments,
+        permissions: team.permissions,
+        can: canInTeam,
+        tasks: liveTeamTasks,
+        comments: liveTeamComments,
+        allTasks: teamTasks,
+        allComments: team.comments,
         config: activeTeamConfig,
         configs: team.configs,
         orgs: team.orgs,
-        events: teamEvents,
+        events: liveTeamEvents,
+        allEvents: teamEvents,
         members,
         orgId,
         orgName,
@@ -892,7 +1033,8 @@ export function TaskProvider({ children }) {
         updateConfig: updateTeamConfig,
       },
       time: {
-        entries: timeEntries,
+        entries: liveTimeEntries,
+        allEntries: timeEntries,
         running: runningEntry,
         start: startTimer,
         stop: stopTimer,
@@ -900,6 +1042,11 @@ export function TaskProvider({ children }) {
         update: updateTimeEntry,
         remove: deleteTimeEntry,
         refresh: refreshTime,
+      },
+      archive: {
+        records: archived,
+        restore: restoreArchived,
+        deleteForever: deleteArchivedForever,
       },
       hydrated: personalHydrated && teamHydrated,
       syncError,
@@ -909,6 +1056,18 @@ export function TaskProvider({ children }) {
     [
       personal,
       personalTasks,
+      liveTasks,
+      liveComments,
+      liveNotes,
+      liveTeamTasks,
+      liveTeamComments,
+      livePersonalEvents,
+      liveTeamEvents,
+      liveTimeEntries,
+      canInTeam,
+      archived,
+      restoreArchived,
+      deleteArchivedForever,
       refreshNotes,
       personalHydrated,
       personalEvents,

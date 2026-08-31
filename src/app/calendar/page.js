@@ -283,10 +283,9 @@ export default function CalendarPage() {
 
   async function removeEvent(entry) {
     const ok = await confirm({
-      title: `Delete "${entry.event.title}"?`,
-      message: "This removes the invite from your calendar. It cannot be undone.",
-      confirmLabel: "Delete",
-      danger: true,
+      title: `Archive "${entry.event.title}"?`,
+      message: "This removes the invite from your calendar. It moves to the Archive, where you can restore it or delete it for good.",
+      confirmLabel: "Archive",
     });
     if (!ok) return;
     if (entry.scope === "team") team.deleteEvent(entry.event.id);

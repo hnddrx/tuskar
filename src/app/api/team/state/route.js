@@ -7,6 +7,8 @@ import {
   getReachableMembers,
 } from "@/lib/db";
 import { DEFAULT_STATUS_PROGRESS } from "@/lib/progress";
+import { hasPermission } from "@/lib/permissions";
+import { getAccessByOrg } from "@/lib/teamPermissions";
 import seed from "@/data/seed.json";
 
 const DEFAULT_TEAM_CONFIG = {
@@ -35,9 +37,21 @@ export async function GET() {
   const { userId, orgId } = await auth();
   if (!userId) return Response.json({ error: "Not signed in" }, { status: 401 });
 
-  const orgs = await getUserOrgs(userId);
+  // A team whose work this person may not see drops out here rather than
+  // being filtered on the client — the payload should not carry it at all.
+  const access = await getAccessByOrg(userId);
+  const orgs = (await getUserOrgs(userId)).filter((o) =>
+    hasPermission(access[o.id]?.permissions, "tasks.view")
+  );
   const orgIds = orgs.map((o) => o.id);
   const orgNames = Object.fromEntries(orgs.map((o) => [o.id, o.name]));
+
+  // The permissions in force, per team, so the UI can hide the controls this
+  // person cannot use. The routes enforce them regardless — this is for
+  // presentation, never for access.
+  const permissions = Object.fromEntries(
+    orgs.map((o) => [o.id, access[o.id]?.permissions || []])
+  );
 
   if (orgIds.length === 0) {
     return Response.json({
@@ -47,6 +61,7 @@ export async function GET() {
       configs: {},
       defaults: DEFAULT_TEAM_CONFIG,
       config: DEFAULT_TEAM_CONFIG,
+      permissions: {},
       hasSynced: false,
     });
   }
@@ -94,6 +109,7 @@ export async function GET() {
     // What a team that has never been configured starts from.
     defaults: DEFAULT_TEAM_CONFIG,
     config: activeConfig || DEFAULT_TEAM_CONFIG,
+    permissions,
     hasSynced: Boolean(activeConfig),
   });
 }

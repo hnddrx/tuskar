@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { getSql, rowToTeamTask, getTeamMembersById, getUserOrgIds } from "@/lib/db";
+import { requireTeamPermission } from "@/lib/teamPermissions";
 
 export async function PATCH(request, { params }) {
   const { userId } = await auth();
@@ -16,6 +17,9 @@ export async function PATCH(request, { params }) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
   const orgId = existing.org_id;
+
+  const gate = await requireTeamPermission(userId, orgId, "tasks.edit");
+  if (gate.error) return gate.error;
 
   const membersById = await getTeamMembersById(orgId);
   const merged = { ...rowToTeamTask(existing, membersById), ...patch };
@@ -59,8 +63,22 @@ export async function DELETE(_request, { params }) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  await sql`delete from team_comments where ticket_id = ${id} and org_id = ${existing.org_id}`;
-  await sql`update team_tasks set parent_id = null where parent_id = ${id} and org_id = ${existing.org_id}`;
-  await sql`delete from team_tasks where id = ${id} and org_id = ${existing.org_id}`;
-  return Response.json({ ok: true });
+  const gate = await requireTeamPermission(userId, existing.org_id, "tasks.delete");
+  if (gate.error) return gate.error;
+
+  // Archives rather than deletes — see lib/archive. Its comments go with it
+  // so restoring the task brings the thread back; subtasks keep their
+  // parent_id, since this is reversible and orphaning them would lose the
+  // tree with no way to rebuild it.
+  const archivedAt = new Date().toISOString();
+
+  await sql`
+    update team_comments set archived_at = ${archivedAt}
+    where ticket_id = ${id} and org_id = ${existing.org_id} and archived_at is null
+  `;
+  await sql`
+    update team_tasks set archived_at = ${archivedAt}
+    where id = ${id} and org_id = ${existing.org_id}
+  `;
+  return Response.json({ ok: true, archivedAt });
 }

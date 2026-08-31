@@ -18,7 +18,7 @@ import { pagerFor } from "@/lib/recordPager";
  */
 export function useNotePager(from, fromLabel, noteId) {
   const {
-    personal: { notes },
+    personal: { allNotes: notes },
   } = useTasks();
 
   const ordered = useMemo(() => {

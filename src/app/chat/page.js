@@ -2,11 +2,11 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Hash, ArrowLeft, Plus, Loader2, X } from "lucide-react";
+import { Hash, ArrowLeft, Plus, Loader2, X, Search } from "lucide-react";
 import PageHeader from "@/components/PageHeader";
 import { useChat } from "@/context/ChatContext";
 import { useConversation } from "@/lib/useConversation";
-import { dmConversationId } from "@/lib/chat";
+import { dmConversationId, filterConversations } from "@/lib/chat";
 import ChatMessages, { initials, PresenceDot } from "@/components/ChatMessages";
 import ChatComposer from "@/components/ChatComposer";
 import ForwardMessageDialog from "@/components/ForwardMessageDialog";
@@ -43,6 +43,9 @@ function ChatPageInner() {
   // a conversation named should land on it, not on the list.
   const [showList, setShowList] = useState(!requested);
   const [composing, setComposing] = useState(false);
+  // Finding a channel or a person in the sidebar. Local state: it changes who
+  // you can see in the list, not which conversation the page is showing.
+  const [search, setSearch] = useState("");
 
   // Following another team's link while already on this page.
   useEffect(() => {
@@ -74,8 +77,12 @@ function ChatPageInner() {
     setReplyingTo(null);
   }, [active]);
 
-  const channels = conversations.filter((c) => c.kind === "room");
-  const directMessages = conversations.filter((c) => c.kind === "dm");
+  // Every teammate already has a DM entry, so filtering the conversations is
+  // also how you find a person.
+  const matching = filterConversations(conversations, search);
+  const channels = matching.filter((c) => c.kind === "room");
+  const directMessages = matching.filter((c) => c.kind === "dm");
+  const searching = search.trim().length > 0;
   const current = conversations.find((c) => c.id === active);
   const person = current?.withUserId
     ? members.find((m) => m.id === current.withUserId)
@@ -118,8 +125,34 @@ function ChatPageInner() {
               showList ? "block" : "hidden"
             }`}
           >
-            <Section label="Channels" />
-            {channels.length === 0 && (
+            <div className="sticky top-0 z-10 border-b border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900">
+              <div className="relative">
+                <Search
+                  size={13}
+                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500"
+                />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search people and channels…"
+                  aria-label="Search people and channels"
+                  className="w-full rounded-md border border-slate-200 bg-white py-1.5 pl-7 pr-7 text-xs text-slate-700 transition-colors placeholder:text-slate-400 focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:placeholder:text-slate-500 dark:focus:border-slate-500"
+                />
+                {searching && (
+                  <button
+                    onClick={() => setSearch("")}
+                    aria-label="Clear search"
+                    title="Clear"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {(!searching || channels.length > 0) && <Section label="Channels" />}
+            {!searching && channels.length === 0 && (
               <p className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500">
                 You&apos;re not in a team yet.
               </p>
@@ -160,6 +193,12 @@ function ChatPageInner() {
                 }}
               />
             ))}
+
+            {searching && channels.length === 0 && directMessages.length === 0 && (
+              <p className="px-3 py-2 text-xs text-slate-400 dark:text-slate-500">
+                No one and no channel matches &ldquo;{search.trim()}&rdquo;.
+              </p>
+            )}
           </aside>
 
           <section

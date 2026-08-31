@@ -43,14 +43,28 @@ export async function PATCH(request, { params }) {
   return Response.json(rowToTask(row));
 }
 
+// Archives rather than deletes — see lib/archive. The task's comments are
+// archived with it so restoring the task brings its thread back intact, and
+// they are stamped with the same instant so the Archive page can tell the
+// two apart from a comment archived on its own.
+//
+// Subtasks keep their parent_id: unlike a real delete this is reversible, and
+// orphaning them would lose the tree with no way to rebuild it on restore.
+// A subtask whose parent is archived stays visible on its own.
 export async function DELETE(_request, { params }) {
   const { userId } = await auth();
   const { id } = await params;
   const sql = getSql();
+  const archivedAt = new Date().toISOString();
 
-  await sql`delete from comments where ticket_id = ${id} and user_id = ${userId}`;
-  await sql`update tasks set parent_id = null where parent_id = ${id} and user_id = ${userId}`;
-  await sql`delete from tasks where id = ${id} and user_id = ${userId}`;
+  await sql`
+    update comments set archived_at = ${archivedAt}
+    where ticket_id = ${id} and user_id = ${userId} and archived_at is null
+  `;
+  await sql`
+    update tasks set archived_at = ${archivedAt}
+    where id = ${id} and user_id = ${userId}
+  `;
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, archivedAt });
 }

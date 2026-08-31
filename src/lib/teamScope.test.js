@@ -7,6 +7,7 @@ import {
   teamChatHref,
   resolveTeamScope,
   tasksForTeam,
+  filterTeams,
   membersForTeam,
 } from "./teamScope.js";
 
@@ -54,4 +55,30 @@ test("assignees narrow to the team the task belongs to", () => {
 test("a member with no team ids is kept rather than silently dropped", () => {
   const members = [{ id: "u1" }, { id: "u2", orgIds: ["org_b"] }];
   assert.deepEqual(membersForTeam(members, "org_a").map((m) => m.id), ["u1"]);
+});
+
+test("the sidebar team search matches on any part of a name, ignoring case", () => {
+  const orgs = [
+    { id: "org_a", name: "Platform Engineering" },
+    { id: "org_b", name: "Design" },
+    { id: "org_c", name: "Data Platform" },
+  ];
+
+  assert.deepEqual(filterTeams(orgs, "platform").map((o) => o.id), ["org_a", "org_c"]);
+  assert.deepEqual(filterTeams(orgs, "DESIGN").map((o) => o.id), ["org_b"]);
+  assert.deepEqual(filterTeams(orgs, "engineering").map((o) => o.id), ["org_a"]);
+  assert.deepEqual(filterTeams(orgs, "nothing"), []);
+});
+
+test("an empty search shows every team rather than none", () => {
+  const orgs = [{ id: "org_a", name: "Alpha" }, { id: "org_b", name: "Beta" }];
+  assert.deepEqual(filterTeams(orgs, ""), orgs);
+  assert.deepEqual(filterTeams(orgs, "   "), orgs);
+  assert.deepEqual(filterTeams(orgs), orgs);
+  assert.deepEqual(filterTeams(undefined, "alpha"), []);
+});
+
+test("a team with no name is skipped rather than crashing the sidebar", () => {
+  const orgs = [{ id: "org_a" }, { id: "org_b", name: "Beta" }];
+  assert.deepEqual(filterTeams(orgs, "beta").map((o) => o.id), ["org_b"]);
 });

@@ -1,6 +1,8 @@
 import { auth } from "@clerk/nextjs/server";
 import { put } from "@vercel/blob";
 import { classifyAttachment, MAX_ATTACHMENT_SIZE } from "@/lib/attachments";
+import { getSql } from "@/lib/db";
+import { recordAttachment, safeAttachmentName } from "@/lib/attachmentStore";
 import { newId, nowIso } from "@/lib/id";
 
 /**
@@ -32,7 +34,7 @@ export async function POST(request) {
   }
 
   const attachmentId = newId("chatfile");
-  const safeName = (file.name || classification.kind).replace(/[^\w.\-]/g, "_").slice(-80);
+  const safeName = safeAttachmentName(file.name, classification.kind);
   const contentType = file.type || "application/octet-stream";
 
   const blob = await put(`chat/${orgId}/${attachmentId}-${safeName}`, file, {
@@ -41,17 +43,25 @@ export async function POST(request) {
     maximumSizeInBytes: MAX_ATTACHMENT_SIZE,
   });
 
-  return Response.json(
-    {
-      id: attachmentId,
-      filename: safeName,
-      contentType,
-      size: file.size,
-      kind: classification.kind,
-      pathname: blob.pathname,
-      uploadedBy: userId,
-      uploadedAt: nowIso(),
-    },
-    { status: 201 }
-  );
+  // Recorded now, while it belongs to nobody: upload and send are separate
+  // requests, so the message that will carry this file does not exist yet. The
+  // POST that creates the message binds the two. A file uploaded and never
+  // sent stays here with no owner, which is what makes it findable at all.
+  const uploadedAt = nowIso();
+  const attachment = await recordAttachment(getSql(), {
+    id: attachmentId,
+    ownerKind: "chat",
+    ownerId: null,
+    userId: null,
+    orgId,
+    uploadedBy: userId,
+    filename: safeName,
+    contentType,
+    size: file.size,
+    kind: classification.kind,
+    pathname: blob.pathname,
+    createdAt: uploadedAt,
+  });
+
+  return Response.json({ ...attachment, uploadedAt }, { status: 201 });
 }

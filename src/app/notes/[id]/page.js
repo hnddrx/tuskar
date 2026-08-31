@@ -84,10 +84,9 @@ function NoteDetailPageInner() {
 
   async function handleDelete() {
     const ok = await confirm({
-      title: "Delete this note?",
-      message: "This cannot be undone.",
-      confirmLabel: "Delete",
-      danger: true,
+      title: "Archive this note?",
+      message: "It moves to the Archive, where you can restore it or delete it for good.",
+      confirmLabel: "Archive",
     });
     if (!ok) return;
     try {

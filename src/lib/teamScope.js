@@ -21,6 +21,10 @@ export function teamBoardHref(orgId) {
   return orgId ? "/team/board?" + TEAM_PARAM + "=" + encodeURIComponent(orgId) : "/team/board";
 }
 
+export function teamAccessHref(orgId) {
+  return orgId ? "/team/access?" + TEAM_PARAM + "=" + encodeURIComponent(orgId) : "/team/access";
+}
+
 export function teamChatHref(orgId) {
   return orgId ? "/chat?" + CHAT_PARAM + "=" + encodeURIComponent(roomConversationId(orgId)) : "/chat";
 }
@@ -33,6 +37,18 @@ export function resolveTeamScope(param, orgs = []) {
 
 export function tasksForTeam(tasks = [], orgId) {
   return orgId ? tasks.filter((t) => t.orgId === orgId) : tasks;
+}
+
+/**
+ * Teams whose name matches what was typed into the sidebar search.
+ *
+ * A blank or whitespace-only query means "everything" rather than "nothing",
+ * so clearing the box restores the full list instead of emptying it.
+ */
+export function filterTeams(orgs = [], query = "") {
+  const q = query.trim().toLowerCase();
+  if (!q) return orgs;
+  return orgs.filter((o) => (o.name || "").toLowerCase().includes(q));
 }
 
 /**

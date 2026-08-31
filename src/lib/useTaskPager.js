@@ -32,8 +32,8 @@ function assigneeNames(t) {
  */
 export function useTaskPager(from, fromLabel, taskId) {
   const {
-    personal: { tasks: personalTasks, comments: personalComments, notes },
-    team: { tasks: teamTasks, comments: teamComments, orgs },
+    personal: { allTasks: personalTasks, comments: personalComments, notes },
+    team: { allTasks: teamTasks, comments: teamComments, orgs },
     time: { entries: timeEntries },
   } = useTasks();
   const { userId } = useAuth();

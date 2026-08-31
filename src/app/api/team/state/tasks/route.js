@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { getSql, rowToTeamTask, getTeamMembersById, getUserOrgs } from "@/lib/db";
+import { requireTeamPermission } from "@/lib/teamPermissions";
 
 export async function POST(request) {
   const { userId, orgId: activeOrgId } = await auth();
@@ -19,6 +20,10 @@ export async function POST(request) {
   if (!org) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
+
+  // Being in the team is no longer enough — see lib/permissions.
+  const gate = await requireTeamPermission(userId, orgId, "tasks.create");
+  if (gate.error) return gate.error;
 
   const sql = getSql();
 

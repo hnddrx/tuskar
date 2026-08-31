@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { getSql, getUserOrgIds } from "@/lib/db";
+import { requireTeamPermission } from "@/lib/teamPermissions";
 
 const ALLOWED_KEYS = ["statuses", "priorities", "types", "statusProgress"];
 
@@ -19,6 +20,11 @@ export async function PUT(request) {
   if (!orgIds.includes(orgId)) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
+
+  // Statuses and priorities are the shape of everyone's board, so changing
+  // them is its own permission rather than part of editing a task.
+  const gate = await requireTeamPermission(userId, orgId, "board.config");
+  if (gate.error) return gate.error;
 
   const sql = getSql();
 

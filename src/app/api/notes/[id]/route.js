@@ -52,12 +52,19 @@ export async function PATCH(request, { params }) {
   return Response.json(rowToNote(row));
 }
 
+// Archives rather than deletes. Attachments stay in Blob storage untouched:
+// the note can come back, and a restored note with its files missing would be
+// worse than the storage it costs to keep them.
 export async function DELETE(_request, { params }) {
   const { userId } = await auth();
   const { id } = await params;
   const sql = getSql();
+  const archivedAt = new Date().toISOString();
 
-  await sql`delete from notes where id = ${id} and user_id = ${userId}`;
+  await sql`
+    update notes set archived_at = ${archivedAt}
+    where id = ${id} and user_id = ${userId}
+  `;
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, archivedAt });
 }

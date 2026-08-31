@@ -7,25 +7,31 @@
 // There is no sort key — notes arrive newest-first from the API and the list
 // keeps that order, so filtering alone gives the sequence the pager walks.
 
+import { applyArchiveFilter } from "./archive.js";
+
 export const TYPE_ALL = "all";
 
 export function parseNotesSearchParams(searchParams) {
   return {
     query: searchParams.get("q") || "",
     type: searchParams.get("type") || TYPE_ALL,
+    // In the URL for the same reason as the task table's: the note pager
+    // rebuilds this list from these params.
+    showArchived: searchParams.get("archived") === "1",
   };
 }
 
-export function buildNotesSearch({ query, type }) {
+export function buildNotesSearch({ query, type, showArchived }) {
   const params = new URLSearchParams();
   if (query.trim()) params.set("q", query);
   if (type !== TYPE_ALL) params.set("type", type);
+  if (showArchived) params.set("archived", "1");
   return params.toString();
 }
 
-export function filterNotes(notes, { query, type }) {
+export function filterNotes(notes, { query, type, showArchived }) {
   const q = query.trim().toLowerCase();
-  return notes.filter((n) => {
+  return applyArchiveFilter(notes, showArchived).filter((n) => {
     if (type !== TYPE_ALL && n.type !== type) return false;
     if (!q) return true;
     return (

@@ -91,6 +91,26 @@ export function unreadCount(messages, lastReadAt, userId) {
   }).length;
 }
 
+/**
+ * Conversations matching what was typed into the chat search — a channel by
+ * its team name, or a person by their name or email address.
+ *
+ * Email is matched as well as name because a chat list shows people by
+ * display name, which is the one thing you may not remember about a
+ * colleague you have only ever emailed.
+ *
+ * A blank query means "everything" rather than "nothing", so clearing the box
+ * restores the full list instead of emptying it.
+ */
+export function filterConversations(conversations = [], query = "") {
+  const q = query.trim().toLowerCase();
+  if (!q) return conversations;
+  return conversations.filter((c) => {
+    const haystack = [c.name, c.email].filter(Boolean).join(" ").toLowerCase();
+    return haystack.includes(q);
+  });
+}
+
 // Consecutive messages from one person collapse under a single header, the
 // way any chat client does it — but only within a short window, so a reply
 // hours later still gets its own header and timestamp.

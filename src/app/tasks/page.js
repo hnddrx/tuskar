@@ -27,6 +27,7 @@ import TaskFiltersPanel, {
   DEFAULT_FILTERS,
   countActiveFilters,
 } from "@/components/TaskFiltersPanel";
+import ArchivedToggle from "@/components/ArchivedToggle";
 import {
   PAGE_SIZES,
   buildTasksSearch,
@@ -196,8 +197,8 @@ export default function TasksPage() {
 
 function TasksPageInner() {
   const {
-    personal: { tasks: rawTasks, comments, notes, config, deleteTask },
-    team: { tasks: teamTasks, orgName },
+    personal: { allTasks: rawTasks, comments, notes, config, deleteTask },
+    team: { allTasks: teamTasks, orgName },
     time: { entries: timeEntries },
   } = useTasks();
   const { userId } = useAuth();
@@ -207,7 +208,7 @@ function TasksPageInner() {
   const confirm = useConfirm();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { query, filters, sort, page, pageSize } = useMemo(
+  const { query, filters, sort, page, pageSize, showArchived } = useMemo(
     () => parseTasksSearchParams(searchParams),
     [searchParams]
   );
@@ -258,7 +259,7 @@ function TasksPageInner() {
   // Push a partial state patch into the URL via replace (no new history
   // entry, no scroll jump) so browser back/forward still behaves normally.
   function pushState(patch) {
-    const next = { query, filters, sort, page, pageSize, ...patch };
+    const next = { query, filters, sort, page, pageSize, showArchived, ...patch };
     const qs = buildTasksSearch(next);
     router.replace(qs ? `/tasks?${qs}` : "/tasks", { scroll: false });
   }
@@ -308,9 +309,10 @@ function TasksPageInner() {
   const tasksById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
 
   const sorted = useMemo(
-    () => orderTasks(tasks, { query, filters, sort }, commentsByTask),
-    [tasks, query, filters, sort, commentsByTask]
+    () => orderTasks(tasks, { query, filters, sort, showArchived }, commentsByTask),
+    [tasks, query, filters, sort, showArchived, commentsByTask]
   );
+  const archivedCount = useMemo(() => tasks.filter((t) => t.archivedAt).length, [tasks]);
 
   const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -403,6 +405,11 @@ function TasksPageInner() {
           )}
 
           <div className="ml-auto flex items-center gap-2">
+            <ArchivedToggle
+              count={archivedCount}
+              active={showArchived}
+              onChange={(v) => pushState({ showArchived: v, page: 1 })}
+            />
             <ColumnsPicker
               columns={ALL_COLUMNS}
               visibleKeys={visibleKeys}
@@ -484,10 +491,9 @@ function TasksPageInner() {
                         <button
                           onClick={async () => {
                             const ok = await confirm({
-                              title: `Delete "${t.name}"?`,
-                              message: "This cannot be undone.",
-                              confirmLabel: "Delete",
-                              danger: true,
+                              title: `Archive "${t.name}"?`,
+                              message: "It moves to the Archive, where you can restore it or delete it for good.",
+                              confirmLabel: "Archive",
                             });
                             if (ok) deleteTask(t.id);
                           }}

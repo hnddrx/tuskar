@@ -6,6 +6,7 @@ import { Play, Square, Pause, RotateCcw, Trash2, Plus, Timer } from "lucide-reac
 import { useTasks } from "@/context/TaskContext";
 import { useConfirm } from "@/components/ConfirmProvider";
 import PageHeader from "@/components/PageHeader";
+import ArchivedToggle from "@/components/ArchivedToggle";
 import { useNow } from "@/lib/useNow";
 import { formatDuration, entrySeconds, totalSeconds, groupByDay } from "@/lib/time";
 import {
@@ -35,7 +36,7 @@ export default function TimePage() {
   const {
     personal: { tasks },
     team: { tasks: teamTasks, orgId },
-    time: { entries, running, start, stop, log, remove },
+    time: { entries: liveEntries, allEntries, running, start, stop, log, remove },
   } = useTasks();
   const confirm = useConfirm();
   const now = useNow(1000);
@@ -59,6 +60,12 @@ export default function TimePage() {
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  // Local state, unlike the task and note lists: nothing pages through the
+  // day log, so there is no second reader to keep in step via the URL.
+  const [showArchived, setShowArchived] = useState(false);
+
+  const entries = showArchived ? allEntries : liveEntries;
+  const archivedCount = allEntries.length - liveEntries.length;
 
   async function guard(action) {
     setBusy(true);
@@ -94,6 +101,13 @@ export default function TimePage() {
       <PageHeader
         title="Time"
         subtitle="Track time against any task, run a Pomodoro, and review where the day went."
+        actions={
+          <ArchivedToggle
+            count={archivedCount}
+            active={showArchived}
+            onChange={setShowArchived}
+          />
+        }
       />
 
       <div className="px-4 py-6 sm:px-8">
@@ -131,10 +145,9 @@ export default function TimePage() {
               taskById={taskById}
               onDelete={async (entry) => {
                 const ok = await confirm({
-                  title: "Delete this time entry?",
-                  message: "This cannot be undone.",
-                  confirmLabel: "Delete",
-                  danger: true,
+                  title: "Archive this time entry?",
+                  message: "It moves to the Archive, where you can restore it or delete it for good.",
+                  confirmLabel: "Archive",
                 });
                 if (ok) guard(() => remove(entry.id));
               }}

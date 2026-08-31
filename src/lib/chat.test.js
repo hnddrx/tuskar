@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  filterConversations,
   roomConversationId,
   roomOrgId,
   isRoomConversation,
@@ -273,4 +274,43 @@ test("a message with no updatedAt still moves the cursor by its send time", () =
     nextCursor([{ id: "m1", createdAt: "2026-01-01T10:00:00Z" }]),
     "2026-01-01T10:00:00Z",
   );
+});
+
+test("chat search finds a channel by team name and a person by their name", () => {
+  const conversations = [
+    { id: "room:org_a", kind: "room", name: "Platform Engineering" },
+    { id: "dm:1_2", kind: "dm", name: "Ada Lovelace", email: "ada@example.com" },
+    { id: "dm:1_3", kind: "dm", name: "Grace Hopper", email: "grace@example.com" },
+  ];
+
+  assert.deepEqual(filterConversations(conversations, "platform").map((c) => c.id), ["room:org_a"]);
+  assert.deepEqual(filterConversations(conversations, "ada").map((c) => c.id), ["dm:1_2"]);
+  assert.deepEqual(filterConversations(conversations, "HOPPER").map((c) => c.id), ["dm:1_3"]);
+});
+
+test("a person is reachable by email, which is what you may actually remember", () => {
+  const conversations = [
+    { id: "dm:1_2", kind: "dm", name: "Ada Lovelace", email: "ada@example.com" },
+    { id: "dm:1_3", kind: "dm", name: "Grace Hopper", email: "grace@navy.example" },
+  ];
+  assert.deepEqual(filterConversations(conversations, "navy").map((c) => c.id), ["dm:1_3"]);
+});
+
+test("an empty search lists every conversation rather than none", () => {
+  const conversations = [{ id: "a", name: "Alpha" }, { id: "b", name: "Beta" }];
+  assert.deepEqual(filterConversations(conversations, ""), conversations);
+  assert.deepEqual(filterConversations(conversations, "   "), conversations);
+  assert.deepEqual(filterConversations(conversations), conversations);
+  assert.deepEqual(filterConversations(undefined, "alpha"), []);
+});
+
+test("a conversation with no name or email is skipped rather than crashing the list", () => {
+  const conversations = [{ id: "a" }, { id: "b", name: "Beta" }];
+  assert.deepEqual(filterConversations(conversations, "beta").map((c) => c.id), ["b"]);
+});
+
+test("searching never reorders the caller's conversation list", () => {
+  const conversations = [{ id: "b", name: "Beta" }, { id: "a", name: "Alpha" }];
+  filterConversations(conversations, "").slice().sort((x, y) => x.id.localeCompare(y.id));
+  assert.deepEqual(conversations.map((c) => c.id), ["b", "a"]);
 });

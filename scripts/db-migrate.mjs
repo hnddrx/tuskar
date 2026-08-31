@@ -5,6 +5,20 @@ import { neon } from "@neondatabase/serverless";
 
 const sql = neon(process.env.DATABASE_URL);
 
+// Every table whose rows a person can delete from the UI. Archiving is
+// uniform across them, so the column and its index are added in one loop
+// rather than eight near-identical statements.
+const ARCHIVABLE_TABLES = [
+  "tasks",
+  "comments",
+  "notes",
+  "team_tasks",
+  "team_comments",
+  "calendar_events",
+  "team_calendar_events",
+  "time_entries",
+];
+
 async function migrate() {
   await sql`
     create table if not exists tasks (
@@ -375,6 +389,123 @@ async function migrate() {
     await sql`alter table chat_reads add primary key (user_id, conversation_id)`;
   }
 
+  // Soft deletion. Deleting a record stamps archived_at instead of removing
+  // the row; the lists hide anything stamped, the Archive page lists it, and
+  // only an explicit "delete permanently" ever runs a real DELETE.
+  //
+  // Deliberately not reusing chat_messages.deleted_at: that is a tombstone
+  // shown to everyone in the conversation and cannot be undone, which is a
+  // different promise from the one archiving makes.
+  for (const table of ARCHIVABLE_TABLES) {
+    await sql.query(`alter table ${table} add column if not exists archived_at text`);
+    await sql.query(
+      `create index if not exists ${table}_archived_at_idx on ${table} (archived_at)`
+    );
+  }
+
+  // Every uploaded file, in one place.
+  //
+  // Attachments used to live only as jsonb on the record they hung off —
+  // notes.attachments and chat_messages.attachment — which meant there was no
+  // way to ask what had been uploaded without reading every note and every
+  // message, and no single place a file's blob path was recorded.
+  //
+  // This table is now the source of truth. The jsonb columns are kept as a
+  // projection of it, rewritten whenever the set changes, so the note editor
+  // and chat clients keep receiving attachments the way they always have.
+  await sql`
+    create table if not exists attachments (
+      id text primary key,
+      owner_kind text not null,
+      owner_id text,
+      user_id text,
+      org_id text,
+      uploaded_by text not null,
+      filename text not null,
+      content_type text not null,
+      size bigint not null default 0,
+      kind text not null,
+      pathname text not null,
+      created_at text not null
+    )
+  `;
+  await sql`create index if not exists attachments_owner_idx on attachments (owner_kind, owner_id)`;
+  await sql`create index if not exists attachments_user_idx on attachments (user_id)`;
+  await sql`create index if not exists attachments_org_idx on attachments (org_id)`;
+
+  // Backfill from the two jsonb columns. Keyed on the attachment's own id and
+  // skipped on conflict, so running the migration again is harmless and an
+  // already-recorded file is never duplicated.
+  const noteRows = await sql`
+    select id, user_id, attachments, created_at from notes
+    where jsonb_array_length(coalesce(attachments, '[]'::jsonb)) > 0
+  `;
+  let backfilled = 0;
+  for (const note of noteRows) {
+    for (const a of note.attachments || []) {
+      if (!a?.id || !a?.pathname) continue;
+      await sql`
+        insert into attachments (
+          id, owner_kind, owner_id, user_id, org_id, uploaded_by,
+          filename, content_type, size, kind, pathname, created_at
+        ) values (
+          ${a.id}, 'note', ${note.id}, ${note.user_id}, null, ${note.user_id},
+          ${a.filename || "file"}, ${a.contentType || "application/octet-stream"},
+          ${Number(a.size) || 0}, ${a.kind || "file"}, ${a.pathname},
+          ${a.createdAt || note.created_at}
+        )
+        on conflict (id) do nothing
+      `;
+      backfilled += 1;
+    }
+  }
+
+  const chatRows = await sql`
+    select id, org_id, author_user_id, attachment, created_at from chat_messages
+    where attachment is not null
+  `;
+  for (const message of chatRows) {
+    const a = message.attachment;
+    if (!a?.id || !a?.pathname) continue;
+    await sql`
+      insert into attachments (
+        id, owner_kind, owner_id, user_id, org_id, uploaded_by,
+        filename, content_type, size, kind, pathname, created_at
+      ) values (
+        ${a.id}, 'chat', ${message.id}, null, ${message.org_id},
+        ${a.uploadedBy || message.author_user_id},
+        ${a.filename || "file"}, ${a.contentType || "application/octet-stream"},
+        ${Number(a.size) || 0}, ${a.kind || "file"}, ${a.pathname},
+        ${a.uploadedAt || message.created_at}
+      )
+      on conflict (id) do nothing
+    `;
+    backfilled += 1;
+  }
+  console.log(`Attachments registry: ${backfilled} existing file(s) reconciled.`);
+
+  // What each team member is allowed to do.
+  //
+  // Membership used to be the only check, so anyone in a team could edit or
+  // delete anything in it. A row here is a decision an admin has made about
+  // one member; no row means nobody has decided, and the defaults in
+  // lib/permissions apply. An empty array is a decision too — it grants
+  // nothing — which is why absence and emptiness must stay distinguishable.
+  //
+  // Admins are not stored: the role comes from Clerk and always carries
+  // everything, so the person handing out permissions cannot be locked out.
+  await sql`
+    create table if not exists team_permissions (
+      org_id text not null,
+      user_id text not null,
+      permissions jsonb not null default '[]',
+      updated_at text not null,
+      updated_by text,
+      primary key (org_id, user_id)
+    )
+  `;
+  await sql`create index if not exists team_permissions_org_idx on team_permissions (org_id)`;
+
   const [presenceOrgColumn] = await sql`
     select 1 from information_schema.columns
     where table_name = 'chat_presence' and column_name = 'org_id'
@@ -391,7 +522,9 @@ async function migrate() {
   }
 
   console.log(
-    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries, smtp_config, chat_messages, chat_reads, chat_presence ready."
+    "Migration complete: tasks, comments, board_config, jira_config, notes, team_tasks, team_comments, team_board_config, calendar_events, team_calendar_events, time_entries, smtp_config, chat_messages, chat_reads, chat_presence, attachments, team_permissions ready. Archiving enabled on: " +
+      ARCHIVABLE_TABLES.join(", ") +
+      "."
   );
 }
 

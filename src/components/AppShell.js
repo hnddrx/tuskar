@@ -18,6 +18,7 @@ import {
   Timer,
   Square,
   Mail,
+  Archive,
 } from "lucide-react";
 import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
@@ -55,6 +56,7 @@ const NAV_SECTIONS = [
   {
     label: null,
     items: [
+      { href: "/archive", label: "Archive", icon: Archive },
       { href: "/docs", label: "Auto Docs", icon: FileText },
       { href: "/jira", label: "Jira Import", icon: Link2 },
       { href: "/email", label: "Email Settings", icon: Mail },

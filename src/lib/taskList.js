@@ -6,6 +6,8 @@
 // parsing, filtering and sorting here means the pager can never drift out of
 // step with the table.
 
+import { applyArchiveFilter } from "./archive.js";
+
 export const SORT_DEFAULT = { key: "lastUpdate", dir: "desc" };
 export const PAGE_SIZE_DEFAULT = 25;
 export const PAGE_SIZES = [10, 25, 50, 100];
@@ -32,10 +34,15 @@ export function parseTasksSearchParams(searchParams) {
     },
     page: Number(searchParams.get("page")) || 1,
     pageSize: Number(searchParams.get("pageSize")) || PAGE_SIZE_DEFAULT,
+    // In the URL rather than component state on purpose: the record pager on
+    // a task's detail page rebuilds this list from these params, and a toggle
+    // it could not see would page through a different list than the one on
+    // screen.
+    showArchived: searchParams.get("archived") === "1",
   };
 }
 
-export function buildTasksSearch({ query, filters, sort, page, pageSize }) {
+export function buildTasksSearch({ query, filters, sort, page, pageSize, showArchived }) {
   const params = new URLSearchParams();
   if (query.trim()) params.set("q", query);
   filters.statuses.forEach((v) => params.append("status", v));
@@ -50,6 +57,7 @@ export function buildTasksSearch({ query, filters, sort, page, pageSize }) {
   if (sort.dir !== SORT_DEFAULT.dir) params.set("dir", sort.dir);
   if (page !== 1) params.set("page", String(page));
   if (pageSize !== PAGE_SIZE_DEFAULT) params.set("pageSize", String(pageSize));
+  if (showArchived) params.set("archived", "1");
   return params.toString();
 }
 
@@ -95,11 +103,11 @@ export function compareValues(a, b, key, assigneeNames = defaultAssigneeNames) {
   return normalize(a[key]) < normalize(b[key]) ? -1 : 1;
 }
 
-export function filterTasks(tasks, { query, filters }, commentsByTask, options = {}) {
+export function filterTasks(tasks, { query, filters, showArchived }, commentsByTask, options = {}) {
   const assigneeNames = options.assigneeNames || defaultAssigneeNames;
   const q = query.trim().toLowerCase();
 
-  return tasks.filter((t) => {
+  return applyArchiveFilter(tasks, showArchived).filter((t) => {
     if (filters.statuses.length && !filters.statuses.includes(t.status)) return false;
     if (filters.priorities.length && !filters.priorities.includes(t.priority)) return false;
     if (

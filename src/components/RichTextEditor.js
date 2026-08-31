@@ -29,6 +29,12 @@ import {
   IndentIncrease,
   IndentDecrease,
   Table as TableIcon,
+  BetweenHorizontalStart,
+  BetweenHorizontalEnd,
+  BetweenVerticalStart,
+  BetweenVerticalEnd,
+  PanelTop,
+  Trash2,
   Undo2,
   Redo2,
   Palette,
@@ -94,6 +100,26 @@ function Divider() {
   return <span className="mx-0.5 h-5 w-px shrink-0 bg-slate-200 dark:bg-slate-700" />;
 }
 
+// A labelled run of table buttons that stays on one line.
+//
+// Insert-above and insert-left read clearly enough as arrows, but the two
+// delete buttons are the same glyph — only the label says which one takes a
+// row and which a column. So the label has to stay with its buttons: the
+// toolbar wraps, and a group broken across lines put "delete row" at the
+// start of a line directly before the COL label, where it read as a column
+// control. Grouping them in one non-shrinking flex row moves the whole group
+// to the next line together, or none of it.
+function TableGroup({ label, children }) {
+  return (
+    <span className="flex shrink-0 items-center gap-0.5">
+      <span className="select-none px-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        {label}
+      </span>
+      {children}
+    </span>
+  );
+}
+
 /**
  * The note body editor. `value` is a Tiptap/ProseMirror document; it seeds the
  * editor and is deliberately not re-applied on every keystroke — remount with
@@ -142,6 +168,13 @@ export default function RichTextEditor({ value, onChange, onReady, placeholder }
             alignCenter: e.isActive({ textAlign: "center" }),
             alignRight: e.isActive({ textAlign: "right" }),
             inTable: e.isActive("table"),
+            canAddRowBefore: e.isActive("table") && e.can().addRowBefore(),
+            canAddRowAfter: e.isActive("table") && e.can().addRowAfter(),
+            canDeleteRow: e.isActive("table") && e.can().deleteRow(),
+            canAddColumnBefore: e.isActive("table") && e.can().addColumnBefore(),
+            canAddColumnAfter: e.isActive("table") && e.can().addColumnAfter(),
+            canDeleteColumn: e.isActive("table") && e.can().deleteColumn(),
+            canToggleHeaderRow: e.isActive("table") && e.can().toggleHeaderRow(),
             canUndo: e.can().undo(),
             canRedo: e.can().redo(),
             fontSize: e.getAttributes("textStyle")?.fontSize || "",
@@ -304,30 +337,67 @@ export default function RichTextEditor({ value, onChange, onReady, placeholder }
         </ToolbarButton>
         {state?.inTable && (
           <>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => chain().addRowAfter().run()}
-              className="shrink-0 rounded px-1.5 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+            <TableGroup label="Row">
+              <ToolbarButton
+                title="Insert row above"
+                disabled={!state?.canAddRowBefore}
+                onClick={() => chain().addRowBefore().run()}
+              >
+                <BetweenHorizontalStart size={14} />
+              </ToolbarButton>
+              <ToolbarButton
+                title="Insert row below"
+                disabled={!state?.canAddRowAfter}
+                onClick={() => chain().addRowAfter().run()}
+              >
+                <BetweenHorizontalEnd size={14} />
+              </ToolbarButton>
+              <ToolbarButton
+                title="Delete row"
+                disabled={!state?.canDeleteRow}
+                onClick={() => chain().deleteRow().run()}
+              >
+                <Minus size={14} />
+              </ToolbarButton>
+            </TableGroup>
+
+            <TableGroup label="Col">
+              <ToolbarButton
+                title="Insert column left"
+                disabled={!state?.canAddColumnBefore}
+                onClick={() => chain().addColumnBefore().run()}
+              >
+                <BetweenVerticalStart size={14} />
+              </ToolbarButton>
+              <ToolbarButton
+                title="Insert column right"
+                disabled={!state?.canAddColumnAfter}
+                onClick={() => chain().addColumnAfter().run()}
+              >
+                <BetweenVerticalEnd size={14} />
+              </ToolbarButton>
+              <ToolbarButton
+                title="Delete column"
+                disabled={!state?.canDeleteColumn}
+                onClick={() => chain().deleteColumn().run()}
+              >
+                <Minus size={14} />
+              </ToolbarButton>
+            </TableGroup>
+
+            <ToolbarButton
+              title="Toggle header row"
+              disabled={!state?.canToggleHeaderRow}
+              onClick={() => chain().toggleHeaderRow().run()}
             >
-              +Row
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => chain().addColumnAfter().run()}
-              className="shrink-0 rounded px-1.5 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-            >
-              +Col
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
+              <PanelTop size={14} />
+            </ToolbarButton>
+            <ToolbarButton
+              title="Delete table"
               onClick={() => chain().deleteTable().run()}
-              className="shrink-0 rounded px-1.5 py-1 text-[11px] font-medium text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950"
             >
-              Delete
-            </button>
+              <Trash2 size={14} />
+            </ToolbarButton>
           </>
         )}
 

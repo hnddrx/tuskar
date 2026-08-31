@@ -12,6 +12,7 @@ import NoteTypePickerModal from "@/components/NoteTypePickerModal";
 import { generateNotesCompilationDoc } from "@/lib/noteDocGenerator";
 import { downloadMarkdown } from "@/lib/docGenerator";
 import { TYPE_ALL, buildNotesSearch, filterNotes, parseNotesSearchParams } from "@/lib/noteList";
+import ArchivedToggle, { ArchivedBadge } from "@/components/ArchivedToggle";
 
 const TYPE_FILTERS = [
   { key: TYPE_ALL, label: "All" },
@@ -31,7 +32,7 @@ export default function NotesPage() {
 
 function NotesPageInner() {
   const {
-    personal: { tasks, notes, refreshNotes, hydrated },
+    personal: { tasks, allNotes: notes, refreshNotes, hydrated },
   } = useTasks();
   const confirm = useConfirm();
   const router = useRouter();
@@ -40,7 +41,7 @@ function NotesPageInner() {
   // can find its way back to this exact list — and page through it. The card
   // vs. list choice stays in localStorage: that's a display preference, not
   // part of which notes you are looking at.
-  const { query, type: typeFilter } = useMemo(
+  const { query, type: typeFilter, showArchived } = useMemo(
     () => parseNotesSearchParams(searchParams),
     [searchParams]
   );
@@ -51,7 +52,7 @@ function NotesPageInner() {
   // Replace rather than push: browser back should leave Notes, not undo one
   // keystroke of the search at a time.
   function pushState(patch) {
-    const qs = buildNotesSearch({ query, type: typeFilter, ...patch });
+    const qs = buildNotesSearch({ query, type: typeFilter, showArchived, ...patch });
     router.replace(qs ? `/notes?${qs}` : "/notes", { scroll: false });
   }
 
@@ -73,9 +74,10 @@ function NotesPageInner() {
   }
 
   const filtered = useMemo(
-    () => filterNotes(notes, { query, type: typeFilter }),
-    [notes, query, typeFilter]
+    () => filterNotes(notes, { query, type: typeFilter, showArchived }),
+    [notes, query, typeFilter, showArchived]
   );
+  const archivedCount = useMemo(() => notes.filter((n) => n.archivedAt).length, [notes]);
 
   function compileAll() {
     downloadMarkdown("taskar-notes.md", generateNotesCompilationDoc(notes, tasks));
@@ -83,10 +85,9 @@ function NotesPageInner() {
 
   async function handleDeleteNote(note) {
     const ok = await confirm({
-      title: "Delete this note?",
-      message: `"${note.title || "Untitled note"}" will be permanently deleted.`,
-      confirmLabel: "Delete",
-      danger: true,
+      title: "Archive this note?",
+      message: `"${note.title || "Untitled note"}" moves to the Archive. You can restore it, or delete it for good, from there.`,
+      confirmLabel: "Archive",
     });
     if (!ok) return;
     const res = await fetch(`/api/notes/${note.id}`, { method: "DELETE" });
@@ -173,6 +174,11 @@ function NotesPageInner() {
               <List size={14} />
             </button>
           </div>
+          <ArchivedToggle
+            count={archivedCount}
+            active={showArchived}
+            onChange={(v) => pushState({ showArchived: v })}
+          />
         </div>
       </PageHeader>
 
@@ -195,6 +201,7 @@ function NotesPageInner() {
                   <Link href={noteHref(note.id)} className="block pr-10">
                     <div className="mb-1.5 flex items-center gap-2">
                       <NoteTypeBadge type={note.type} />
+                      <ArchivedBadge archivedAt={note.archivedAt} />
                       {linkedTask && (
                         <span className="whitespace-nowrap text-xs text-slate-400 dark:text-slate-500">
                           {linkedTask.ticketId}
@@ -246,6 +253,7 @@ function NotesPageInner() {
                     className="flex min-w-0 flex-1 items-center gap-3"
                   >
                     <NoteTypeBadge type={note.type} />
+                    <ArchivedBadge archivedAt={note.archivedAt} />
                     <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-200">
                       {note.title || "Untitled note"}
                     </span>

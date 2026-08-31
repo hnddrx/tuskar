@@ -9,13 +9,17 @@ function note(over) {
 }
 
 test("the round trip through the URL leaves the view unchanged", () => {
-  const state = { query: "standup", type: "mom" };
+  const state = { query: "standup", type: "mom", showArchived: true };
   assert.deepEqual(parseNotesSearchParams(new URLSearchParams(buildNotesSearch(state))), state);
 });
 
 test("an empty search and the all-types filter stay out of the URL", () => {
-  assert.equal(buildNotesSearch({ query: "  ", type: "all" }), "");
-  assert.deepEqual(parseNotesSearchParams(new URLSearchParams("")), { query: "", type: "all" });
+  assert.equal(buildNotesSearch({ query: "  ", type: "all", showArchived: false }), "");
+  assert.deepEqual(parseNotesSearchParams(new URLSearchParams("")), {
+    query: "",
+    type: "all",
+    showArchived: false,
+  });
 });
 
 test("filtering narrows by type and searches title and body", () => {
@@ -52,4 +56,31 @@ test("filtering keeps the list's newest-first order for the pager", () => {
   assert.equal(first.next.id, "c");
 
   assert.equal(pagerFor(ordered, "b"), null);
+});
+
+test("a note list hides archived notes unless it is asked to show them", () => {
+  const notes = [
+    note({ id: "a" }),
+    note({ id: "b", archivedAt: "2026-08-30T10:00:00.000Z" }),
+  ];
+  assert.deepEqual(
+    filterNotes(notes, { query: "", type: "all", showArchived: false }).map((n) => n.id),
+    ["a"]
+  );
+  assert.deepEqual(
+    filterNotes(notes, { query: "", type: "all", showArchived: true }).map((n) => n.id),
+    ["a", "b"]
+  );
+});
+
+test("the search still applies while the archive is showing", () => {
+  const notes = [
+    note({ id: "a", title: "Kickoff" }),
+    note({ id: "b", title: "Kickoff", archivedAt: "2026-08-30T10:00:00.000Z" }),
+    note({ id: "c", title: "Groceries", archivedAt: "2026-08-30T10:00:00.000Z" }),
+  ];
+  assert.deepEqual(
+    filterNotes(notes, { query: "kickoff", type: "all", showArchived: true }).map((n) => n.id),
+    ["a", "b"]
+  );
 });

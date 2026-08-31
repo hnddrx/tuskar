@@ -8,6 +8,11 @@ export async function DELETE(_request, { params }) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   const sql = getSql();
-  await sql`delete from calendar_events where id = ${id} and user_id = ${userId}`;
-  return Response.json({ ok: true });
+  // Archives rather than deletes — see lib/archive.
+  const archivedAt = new Date().toISOString();
+  await sql`
+    update calendar_events set archived_at = ${archivedAt}
+    where id = ${id} and user_id = ${userId}
+  `;
+  return Response.json({ ok: true, archivedAt });
 }

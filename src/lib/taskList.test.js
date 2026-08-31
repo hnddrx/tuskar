@@ -26,6 +26,7 @@ const DEFAULT_STATE = {
   sort: { key: "lastUpdate", dir: "desc" },
   page: 1,
   pageSize: 25,
+  showArchived: false,
 };
 
 function task(over) {
@@ -50,6 +51,7 @@ test("the round trip through the URL leaves the view unchanged", () => {
     sort: { key: "priority", dir: "asc" },
     page: 3,
     pageSize: 50,
+    showArchived: true,
   };
   const parsed = parseTasksSearchParams(new URLSearchParams(buildTasksSearch(state)));
   assert.deepEqual(parsed, state);
@@ -158,4 +160,31 @@ test("a task filtered out of the list has no place in it", () => {
     filters: { ...DEFAULT_STATE.filters, statuses: ["Todo"] },
   });
   assert.equal(pagerFor(ordered, "b"), null);
+});
+
+test("a list hides archived tasks unless it is asked to show them", () => {
+  const tasks = [
+    task({ id: "a", name: "Live" }),
+    task({ id: "b", name: "Gone", archivedAt: "2026-08-30T10:00:00.000Z" }),
+  ];
+  const ordered = (showArchived) =>
+    orderTasks(tasks, { ...DEFAULT_STATE, showArchived, sort: { key: "name", dir: "asc" } })
+      .map((t) => t.id);
+
+  assert.deepEqual(ordered(false), ["a"]);
+  assert.deepEqual(ordered(true), ["b", "a"]);
+});
+
+test("showing the archive puts archived tasks back in the sort, not at the end", () => {
+  const tasks = [
+    task({ id: "a", name: "Charlie" }),
+    task({ id: "b", name: "Alpha", archivedAt: "2026-08-30T10:00:00.000Z" }),
+    task({ id: "c", name: "Bravo" }),
+  ];
+  const ordered = orderTasks(tasks, {
+    ...DEFAULT_STATE,
+    showArchived: true,
+    sort: { key: "name", dir: "asc" },
+  });
+  assert.deepEqual(ordered.map((t) => t.id), ["b", "c", "a"]);
 });

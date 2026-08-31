@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { getSql, rowToChatMessage, getUserOrgIds, getReachableMembers } from "@/lib/db";
 import { canAccessConversation, isRoomConversation, roomOrgId } from "@/lib/chat";
+import { bindAttachment } from "@/lib/attachmentStore";
 import { newId, nowIso } from "@/lib/id";
 
 const MAX_BODY = 4000;
@@ -163,6 +164,13 @@ export async function POST(request) {
     )
     returning *
   `;
+
+  // The file was recorded at upload time with no owner; this is the message
+  // that claims it. A forward reuses the original file rather than copying it,
+  // so the binding sticks to the first message and later ones leave it alone.
+  if (file?.id) {
+    await bindAttachment(sql, file.id, row.id);
+  }
 
   const namesById = await authorNames(userId);
   const quoted = await quotedById(sql, [row], namesById);
