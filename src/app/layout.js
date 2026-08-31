@@ -22,7 +22,15 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="h-full antialiased">
+    // suppressHydrationWarning covers this one element's own attributes, and
+    // nothing below it. The theme script in <head> runs before React hydrates
+    // and adds the dark class to <html>, which the server could not have
+    // rendered — it has no localStorage and no media query to read. That
+    // difference is the whole point of the script, which exists so the page
+    // does not flash light on every load, so React is told to expect it here
+    // rather than reporting it as a fault. A real mismatch anywhere else,
+    // including on <body>, still warns.
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
