@@ -21,6 +21,7 @@ import ScopeBadge from "@/components/ScopeBadge";
 import { useNow } from "@/lib/useNow";
 import { formatDateTime, formatDuration, totalForTask } from "@/lib/time";
 import { rowOpenProps } from "@/lib/rowOpen";
+import { ShortcutHint, useShortcut } from "@/components/ShortcutProvider";
 import TeamTaskFormModal from "@/components/TeamTaskFormModal";
 import { TEAM_PARAM, resolveTeamScope, tasksForTeam } from "@/lib/teamScope";
 import PageHeader from "@/components/PageHeader";
@@ -191,6 +192,11 @@ function TeamTasksPageInner() {
   // Creating a team opens Clerk's own screen over this page rather than
   // navigating away from a list you were part-way through reading.
   const { openCreateOrganization } = useClerk();
+  useShortcut("n", "New task", () => openNew(), { enabled: Boolean(createIn) });
+  useShortcut("g", "New team", () =>
+    openCreateOrganization({ afterCreateOrganizationUrl: "/team/tasks?team=:id" })
+  );
+  useShortcut("f", "Filters", () => setFiltersOpen((open) => !open));
 
   // "?team=" narrows the list to one team; without it you get every team you
   // are in. An id for a team you have left falls back to the wider view.
@@ -349,6 +355,7 @@ function TeamTasksPageInner() {
             className="flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
           >
             <Plus size={16} /> New team
+            <ShortcutHint shortcutKey="g" />
           </button>
           <button
             onClick={openNew}
@@ -363,6 +370,7 @@ function TeamTasksPageInner() {
             className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors disabled:cursor-not-allowed disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
           >
             <Plus size={16} /> New task
+            <ShortcutHint shortcutKey="n" />
           </button>
           </>
         }

@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   NotebookText,
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
+import { ShortcutHint, useShortcut } from "@/components/ShortcutProvider";
 import TeamsNav from "@/components/TeamsNav";
 import { DONE_STATUSES } from "@/lib/constants";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -38,25 +39,25 @@ const NAV_SECTIONS = [
   {
     label: null,
     items: [
-      { href: "/", label: "Overview", icon: LayoutDashboard },
-      { href: "/calendar", label: "Calendar", icon: CalendarDays },
-      { href: "/time", label: "Time", icon: Timer },
+      { href: "/", label: "Overview", icon: LayoutDashboard, shortcut: "o" },
+      { href: "/calendar", label: "Calendar", icon: CalendarDays, shortcut: "c" },
+      { href: "/time", label: "Time", icon: Timer, shortcut: "t" },
     ],
   },
   {
     label: "Personal",
     accent: "personal",
     items: [
-      { href: "/tasks", label: "My Tasks", icon: Table2 },
-      { href: "/board", label: "My Board", icon: KanbanSquare },
-      { href: "/notes", label: "Notes", icon: NotebookText },
+      { href: "/tasks", label: "My Tasks", icon: Table2, shortcut: "m" },
+      { href: "/board", label: "My Board", icon: KanbanSquare, shortcut: "b" },
+      { href: "/notes", label: "Notes", icon: NotebookText, shortcut: "e" },
     ],
   },
   { id: "teams" },
   {
     label: null,
     items: [
-      { href: "/archive", label: "Archive", icon: Archive },
+      { href: "/archive", label: "Archive", icon: Archive, shortcut: "r" },
       { href: "/docs", label: "Auto Docs", icon: FileText },
       { href: "/jira", label: "Jira Import", icon: Link2 },
       { href: "/email", label: "Email Settings", icon: Mail },
@@ -97,9 +98,34 @@ const ACTIVE_STYLES = {
   default: "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900",
 };
 
+// Each destination claims its key here rather than inside the loop, because
+// a hook cannot be called from one.
+function NavShortcuts({ onNavigate }) {
+  const router = useRouter();
+  const items = NAV_SECTIONS.flatMap((s) => s.items || []).filter((i) => i.shortcut);
+
+  return items.map((item) => (
+    <NavShortcut key={item.href} item={item} router={router} onNavigate={onNavigate} />
+  ));
+}
+
+function NavShortcut({ item, router, onNavigate }) {
+  useShortcut(
+    item.shortcut,
+    item.label,
+    () => {
+      onNavigate?.();
+      router.push(item.href);
+    },
+    { scope: "global" }
+  );
+  return null;
+}
+
 function NavLinks({ pathname, onNavigate }) {
   return (
     <nav className="flex-1 overflow-y-auto px-3 pb-2">
+      <NavShortcuts onNavigate={onNavigate} />
       {NAV_SECTIONS.map((section, i) =>
         section.id === "teams" ? (
           <Suspense key="teams" fallback={null}>
@@ -120,7 +146,7 @@ function NavLinks({ pathname, onNavigate }) {
             </p>
           )}
           <div className="space-y-1">
-            {section.items.map(({ href, label, icon: Icon }) => {
+            {section.items.map(({ href, label, icon: Icon, shortcut }) => {
               const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
               return (
                 <Link
@@ -135,6 +161,7 @@ function NavLinks({ pathname, onNavigate }) {
                 >
                   <Icon size={16} strokeWidth={2} />
                   {label}
+                  <ShortcutHint shortcutKey={shortcut} />
                 </Link>
               );
             })}

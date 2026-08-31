@@ -21,6 +21,7 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { useNow } from "@/lib/useNow";
 import { formatDateTime, formatDuration, totalForTask } from "@/lib/time";
 import { rowOpenProps } from "@/lib/rowOpen";
+import { ShortcutHint, useShortcut } from "@/components/ShortcutProvider";
 import TaskFormModal from "@/components/TaskFormModal";
 import PageHeader from "@/components/PageHeader";
 import ColumnsPicker from "@/components/ColumnsPicker";
@@ -208,6 +209,8 @@ function TasksPageInner() {
   const timeNow = useNow(60000);
   const confirm = useConfirm();
   const router = useRouter();
+  useShortcut("n", "New task", () => openNew());
+  useShortcut("f", "Filters", () => setFiltersOpen((open) => !open));
   const searchParams = useSearchParams();
   const { query, filters, sort, page, pageSize, showArchived } = useMemo(
     () => parseTasksSearchParams(searchParams),
@@ -362,6 +365,7 @@ function TasksPageInner() {
             className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors dark:bg-slate-100 dark:text-slate-900"
           >
             <Plus size={16} /> New task
+            <ShortcutHint shortcutKey="n" />
           </button>
         }
         mobileFab={filtersOpen ? undefined : { onClick: openNew, label: "New task" }}

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import ChipToggleGroup from "@/components/ChipToggleGroup";
+import { ShortcutHint } from "@/components/ShortcutProvider";
 
 export const DEFAULT_FILTERS = {
   statuses: [],
@@ -59,6 +60,8 @@ export default function TaskFiltersPanel({
       >
         <SlidersHorizontal size={14} />
         Filters
+        {/* The key itself is claimed by whichever page renders this panel. */}
+        <ShortcutHint shortcutKey="f" />
         {activeCount > 0 && (
           <span
             className={`ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold ${

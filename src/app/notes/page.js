@@ -14,6 +14,7 @@ import { downloadMarkdown } from "@/lib/docGenerator";
 import { TYPE_ALL, buildNotesSearch, filterNotes, parseNotesSearchParams } from "@/lib/noteList";
 import { formatDateTime } from "@/lib/time";
 import { rowOpenProps } from "@/lib/rowOpen";
+import { ShortcutHint, useShortcut } from "@/components/ShortcutProvider";
 import ArchivedToggle, { ArchivedBadge } from "@/components/ArchivedToggle";
 
 const TYPE_FILTERS = [
@@ -38,6 +39,10 @@ function NotesPageInner() {
   } = useTasks();
   const confirm = useConfirm();
   const router = useRouter();
+  useShortcut("n", "New note", () => setPickerOpen(true));
+  useShortcut("d", "Compile all notes", () => compileAll(), {
+    enabled: notes.length > 0,
+  });
   const searchParams = useSearchParams();
   // Search and the type filter live in the URL, so a note opened from here
   // can find its way back to this exact list — and page through it. The card
@@ -109,12 +114,14 @@ function NotesPageInner() {
               className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800"
             >
               <Download size={14} /> Compile all notes
+              <ShortcutHint shortcutKey="d" />
             </button>
             <button
               onClick={() => setPickerOpen(true)}
               className="flex items-center gap-1.5 rounded-md bg-slate-900 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
             >
               <Plus size={16} /> New note
+              <ShortcutHint shortcutKey="n" />
             </button>
           </>
         }

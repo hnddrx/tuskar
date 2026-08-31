@@ -4,6 +4,7 @@ import { TaskProvider } from "@/context/TaskContext";
 import { ChatProvider } from "@/context/ChatContext";
 import AppShell from "@/components/AppShell";
 import { ConfirmProvider } from "@/components/ConfirmProvider";
+import ShortcutProvider from "@/components/ShortcutProvider";
 import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 export const metadata = {
@@ -39,7 +40,9 @@ export default function RootLayout({ children }) {
           <ConfirmProvider>
             <TaskProvider>
               <ChatProvider>
-                <AppShell>{children}</AppShell>
+                <ShortcutProvider>
+                  <AppShell>{children}</AppShell>
+                </ShortcutProvider>
               </ChatProvider>
             </TaskProvider>
           </ConfirmProvider>
