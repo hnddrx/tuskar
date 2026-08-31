@@ -8,6 +8,7 @@ import {
   KanbanSquare,
   MessagesSquare,
   ShieldCheck,
+  Settings,
   ChevronRight,
   Search,
   X,
@@ -23,6 +24,7 @@ import {
   teamBoardHref,
   teamChatHref,
   teamAccessHref,
+  teamManageHref,
 } from "@/lib/teamScope";
 
 // The destinations that exist once per team.
@@ -39,6 +41,17 @@ const TEAM_VIEWS = [
     href: teamAccessHref,
     at: "/team/access",
     adminOnly: true,
+  },
+  // Clerk's switcher offers "Manage organization" for the active organization
+  // only, and takes no prop to offer it for the rest. Listing it per team is
+  // how every team you are in gets a way in — the link makes that team active
+  // on its way to the page.
+  {
+    key: "manage",
+    label: "Manage team",
+    icon: Settings,
+    href: teamManageHref,
+    at: "/team/manage",
   },
 ];
 

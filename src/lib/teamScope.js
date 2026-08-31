@@ -21,6 +21,10 @@ export function teamBoardHref(orgId) {
   return orgId ? "/team/board?" + TEAM_PARAM + "=" + encodeURIComponent(orgId) : "/team/board";
 }
 
+export function teamManageHref(orgId) {
+  return orgId ? "/team/manage?" + TEAM_PARAM + "=" + encodeURIComponent(orgId) : "/team/manage";
+}
+
 export function teamAccessHref(orgId) {
   return orgId ? "/team/access?" + TEAM_PARAM + "=" + encodeURIComponent(orgId) : "/team/access";
 }

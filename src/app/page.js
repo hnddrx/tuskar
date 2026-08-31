@@ -4,28 +4,17 @@ import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { useTasks } from "@/context/TaskContext";
 import { StatusBadge, PriorityBadge } from "@/components/Badge";
-import ScopeBadge from "@/components/ScopeBadge";
 import { DONE_STATUSES } from "@/lib/constants";
+import { summariseByTeam, summariseTasks } from "@/lib/teamSummary";
+import { teamTasksHref } from "@/lib/teamScope";
 import PageHeader from "@/components/PageHeader";
-
-// Counts shared by the personal and team summaries, so the two read the same
-// way rather than each deriving its own numbers.
-function summarise(list, today) {
-  const open = list.filter((t) => !DONE_STATUSES.includes(t.status));
-  return {
-    open,
-    done: list.filter((t) => DONE_STATUSES.includes(t.status)),
-    highPriority: open.filter((t) =>
-      ["Critical", "Highest", "High"].includes(t.priority)
-    ),
-    overdue: open.filter((t) => t.targetDate && new Date(t.targetDate) < today),
-  };
-}
 
 export default function OverviewPage() {
   const {
     personal: { tasks, comments },
-    team: { tasks: teamTasks, orgId, orgName, members },
+    // Every team, not the one the switcher happens to be pointing at: this
+    // page is the one place that is meant to show all of your work at once.
+    team: { tasks: teamTasks, orgs },
   } = useTasks();
   const { userId } = useAuth();
 
@@ -45,27 +34,23 @@ export default function OverviewPage() {
     .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
     .slice(0, 6);
 
-  // The team summary only appears when a team is actually active — with a
-  // personal account selected there is nothing to summarise.
-  const teamSummary = summarise(teamTasks || [], today);
-  const assignedToMe = (teamTasks || []).filter((t) =>
-    (t.assigneeIds || []).includes(userId)
-  );
-  const teamOpenAssignedToMe = assignedToMe.filter(
-    (t) => !DONE_STATUSES.includes(t.status)
-  );
+  // Totalled across every team, and broken down per team by the same
+  // function, so the rows always add up to the figure above them.
+  const teamOptions = { userId, today };
+  const teamSummary = summariseTasks(teamTasks || [], teamOptions);
+  const teamRows = summariseByTeam(teamTasks || [], orgs || [], teamOptions);
   const teamRecent = [...(teamTasks || [])]
     .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
     .slice(0, 5);
 
   const teamStats = [
-    { label: "Team open", value: teamSummary.open.length },
-    { label: "Assigned to me", value: teamOpenAssignedToMe.length },
-    { label: "High priority (open)", value: teamSummary.highPriority.length },
+    { label: "Team open", value: teamSummary.open },
+    { label: "Assigned to me", value: teamSummary.assignedToMe },
+    { label: "High priority (open)", value: teamSummary.highPriority },
     {
       label: "Overdue",
-      value: teamSummary.overdue.length,
-      warn: teamSummary.overdue.length > 0,
+      value: teamSummary.overdue,
+      warn: teamSummary.overdue > 0,
     },
   ];
 
@@ -171,19 +156,19 @@ export default function OverviewPage() {
           </div>
         </div>
 
-        {orgId && (
+        {orgs?.length > 0 && (
           <section className="mt-8">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                  Team
+                  Teams
                 </h2>
-                <ScopeBadge scope="team" teamName={orgName} />
-                {members?.length > 0 && (
-                  <span className="text-xs text-slate-400 dark:text-slate-500">
-                    {members.length} member{members.length === 1 ? "" : "s"}
-                  </span>
-                )}
+                {/* Named as all of them, because that is what the numbers
+                    are. This used to carry the selected team's name over
+                    totals that spanned every team. */}
+                <span className="text-xs text-slate-400 dark:text-slate-500">
+                  {orgs.length} team{orgs.length === 1 ? "" : "s"}
+                </span>
               </div>
               <Link
                 href="/team/tasks"
@@ -210,6 +195,57 @@ export default function OverviewPage() {
                 </div>
               ))}
             </div>
+
+            {orgs.length > 1 && (
+              <div className="mb-4 overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:border-slate-800 dark:text-slate-500">
+                      <th className="px-4 py-2">Team</th>
+                      <th className="px-4 py-2 text-right">Open</th>
+                      <th className="px-4 py-2 text-right">Mine</th>
+                      <th className="px-4 py-2 text-right">High</th>
+                      <th className="px-4 py-2 text-right">Overdue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teamRows.map((row) => (
+                      <tr
+                        key={row.id}
+                        className="border-b border-slate-50 last:border-0 dark:border-slate-800/60"
+                      >
+                        <td className="px-4 py-2">
+                          <Link
+                            href={teamTasksHref(row.id)}
+                            className="text-slate-700 transition-colors hover:underline dark:text-slate-300"
+                          >
+                            {row.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums text-slate-600 dark:text-slate-400">
+                          {row.open}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums text-slate-600 dark:text-slate-400">
+                          {row.assignedToMe}
+                        </td>
+                        <td className="px-4 py-2 text-right tabular-nums text-slate-600 dark:text-slate-400">
+                          {row.highPriority}
+                        </td>
+                        <td
+                          className={`px-4 py-2 text-right tabular-nums ${
+                            row.overdue > 0
+                              ? "font-medium text-red-600 dark:text-red-400"
+                              : "text-slate-600 dark:text-slate-400"
+                          }`}
+                        >
+                          {row.overdue}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
               <h3 className="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-200">
