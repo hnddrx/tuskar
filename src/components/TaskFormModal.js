@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
+import { useConfirm } from "@/components/ConfirmProvider";
 
 const EMPTY = {
   ticketId: "",
@@ -22,9 +23,24 @@ const EMPTY = {
 };
 
 export default function TaskFormModal({ open, onClose, task = null }) {
-  const { personal: { config, addTask, updateTask, tasks } } = useTasks();
+  const { personal: { config, addTask, updateTask, deleteTask, tasks } } = useTasks();
+  const confirm = useConfirm();
   const [form, setForm] = useState(EMPTY);
   const isEdit = Boolean(task);
+
+  // Archiving from the form asks the same question the task list asks, so the
+  // answer means the same thing wherever it is given. The modal closes on the
+  // way out — the task it was editing is no longer in the list behind it.
+  async function handleArchive() {
+    const ok = await confirm({
+      title: `Archive "${task.name}"?`,
+      message: "It moves to the Archive, where you can restore it or delete it for good.",
+      confirmLabel: "Archive",
+    });
+    if (!ok) return;
+    deleteTask(task.id);
+    onClose();
+  }
 
   // Reset the form whenever the modal opens or the target task changes.
   useEffect(() => {
@@ -295,11 +311,20 @@ export default function TaskFormModal({ open, onClose, task = null }) {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <div className="flex items-center gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+            {isEdit && (
+              <button
+                type="button"
+                onClick={handleArchive}
+                className="rounded-md px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
+              >
+                Archive
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
+              className="ml-auto rounded-md px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
             >
               Cancel
             </button>

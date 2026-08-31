@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useTasks } from "@/context/TaskContext";
+import { useConfirm } from "@/components/ConfirmProvider";
 import TeamAssigneePicker from "@/components/TeamAssigneePicker";
 import { membersForTeam } from "@/lib/teamScope";
 
@@ -24,10 +25,27 @@ const EMPTY = {
 };
 
 export default function TeamTaskFormModal({ open, onClose, task = null, orgId = null }) {
-  const { team: { config, configs, addTask, updateTask, tasks, members } } = useTasks();
+  const { team: { config, configs, addTask, updateTask, deleteTask, tasks, members, can } } =
+    useTasks();
+  const confirm = useConfirm();
   const [form, setForm] = useState(EMPTY);
   const isEdit = Boolean(task);
   const targetOrgId = task?.orgId || orgId || null;
+
+  // Offered only to someone the team lets archive — the route refuses anyone
+  // else, and a button that always fails is worse than no button.
+  const canArchive = isEdit && can("tasks.delete", task.orgId);
+
+  async function handleArchive() {
+    const ok = await confirm({
+      title: `Archive "${task.name}"?`,
+      message: "It moves to the Archive, where you can restore it or delete it for good.",
+      confirmLabel: "Archive",
+    });
+    if (!ok) return;
+    deleteTask(task.id);
+    onClose();
+  }
   // A team's own statuses and types, and only the people actually in it.
   const teamConfig = (targetOrgId && configs?.[targetOrgId]) || config;
   const teamMembers = membersForTeam(members, targetOrgId);
@@ -296,11 +314,20 @@ export default function TeamTaskFormModal({ open, onClose, task = null, orgId = 
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <div className="flex items-center gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+            {canArchive && (
+              <button
+                type="button"
+                onClick={handleArchive}
+                className="rounded-md px-3 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
+              >
+                Archive
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
+              className="ml-auto rounded-md px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800 transition-colors"
             >
               Cancel
             </button>

@@ -13,6 +13,7 @@ import { generateNotesCompilationDoc } from "@/lib/noteDocGenerator";
 import { downloadMarkdown } from "@/lib/docGenerator";
 import { TYPE_ALL, buildNotesSearch, filterNotes, parseNotesSearchParams } from "@/lib/noteList";
 import { formatDateTime } from "@/lib/time";
+import { rowOpenProps } from "@/lib/rowOpen";
 import ArchivedToggle, { ArchivedBadge } from "@/components/ArchivedToggle";
 
 const TYPE_FILTERS = [
@@ -197,7 +198,11 @@ function NotesPageInner() {
               return (
                 <div
                   key={note.id}
-                  className="group relative rounded-lg border border-slate-200 bg-white px-4 py-3 transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600"
+                  {...rowOpenProps(
+                    () => router.push(noteHref(note.id)),
+                    `Open ${note.title || "Untitled note"}`
+                  )}
+                  className="group relative cursor-pointer rounded-lg border border-slate-200 bg-white px-4 py-3 transition-colors hover:border-slate-300 focus:border-slate-400 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-600"
                 >
                   <Link href={noteHref(note.id)} className="block pr-10">
                     <div className="mb-1.5 flex items-center gap-2">
@@ -253,7 +258,11 @@ function NotesPageInner() {
               return (
                 <div
                   key={note.id}
-                  className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                  {...rowOpenProps(
+                    () => router.push(noteHref(note.id)),
+                    `Open ${note.title || "Untitled note"}`
+                  )}
+                  className="group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50 focus:bg-slate-50 focus:outline-none dark:hover:bg-slate-800/60 dark:focus:bg-slate-800/60"
                 >
                   <Link
                     href={noteHref(note.id)}

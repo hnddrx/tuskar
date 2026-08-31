@@ -19,6 +19,7 @@ import { ProgressBar } from "@/components/ProgressBar";
 import ScopeBadge from "@/components/ScopeBadge";
 import { useNow } from "@/lib/useNow";
 import { formatDateTime, formatDuration, totalForTask } from "@/lib/time";
+import { rowOpenProps } from "@/lib/rowOpen";
 import TeamTaskFormModal from "@/components/TeamTaskFormModal";
 import { TEAM_PARAM, resolveTeamScope, tasksForTeam } from "@/lib/teamScope";
 import PageHeader from "@/components/PageHeader";
@@ -452,7 +453,8 @@ function TeamTasksPageInner() {
                 return (
                   <tr
                     key={t.id}
-                    className="group border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors dark:hover:bg-slate-800"
+                    {...rowOpenProps(() => router.push(taskHref(t.id)), `Open ${t.name}`)}
+                    className="group cursor-pointer border-b border-slate-50 last:border-0 transition-colors hover:bg-slate-50 focus:bg-slate-50 focus:outline-none dark:hover:bg-slate-800 dark:focus:bg-slate-800"
                   >
                     {columns.map((col) => (
                       <td key={col.key} className={CELL_DEFS[col.key].className}>
