@@ -25,8 +25,9 @@ const EMPTY = {
 };
 
 export default function TeamTaskFormModal({ open, onClose, task = null, orgId = null }) {
-  const { team: { config, configs, addTask, updateTask, deleteTask, tasks, members, can } } =
-    useTasks();
+  const {
+    team: { config, configs, defaults, addTask, updateTask, deleteTask, tasks, members, can },
+  } = useTasks();
   const confirm = useConfirm();
   const [form, setForm] = useState(EMPTY);
   const isEdit = Boolean(task);
@@ -46,8 +47,10 @@ export default function TeamTaskFormModal({ open, onClose, task = null, orgId = 
     deleteTask(task.id);
     onClose();
   }
-  // A team's own statuses and types, and only the people actually in it.
-  const teamConfig = (targetOrgId && configs?.[targetOrgId]) || config;
+  // A team's own statuses and types, and only the people actually in it. A
+  // team nobody has configured yet gets the starting set rather than the
+  // selected team's — this form is opened from another team's board.
+  const teamConfig = (targetOrgId && (configs?.[targetOrgId] || defaults)) || config;
   const teamMembers = membersForTeam(members, targetOrgId);
 
   // Reset the form whenever the modal opens or the target task changes.

@@ -1028,6 +1028,10 @@ export function TaskProvider({ children }) {
         allComments: team.comments,
         config: activeTeamConfig,
         configs: team.configs,
+        // What a team that has never been configured starts from. Exposed so a
+        // page showing one team can fall back to it rather than to whatever the
+        // *selected* team happens to be configured with.
+        defaults: team.defaults,
         orgs: team.orgs,
         events: liveTeamEvents,
         allEvents: teamEvents,

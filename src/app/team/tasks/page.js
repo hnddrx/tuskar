@@ -181,7 +181,7 @@ export default function TeamTasksPage() {
 
 function TeamTasksPageInner() {
   const {
-    team: { allTasks: rawTasks, comments, config, configs, orgs, deleteTask, orgId, can },
+    team: { allTasks: rawTasks, comments, config, configs, defaults, orgs, deleteTask, orgId, can },
     time: { entries: timeEntries },
   } = useTasks();
   // Coarse tick — see the personal table.
@@ -286,8 +286,10 @@ function TeamTasksPageInner() {
   );
 
   // Statuses and priorities belong to a team, so a scoped list filters by
-  // that team's set rather than the selected team's.
-  const scopedConfig = (teamScope && configs?.[teamScope]) || config;
+  // that team's set rather than the selected team's — and a team that has
+  // never been configured falls back to the starting set, not to whatever the
+  // selected team happens to use.
+  const scopedConfig = (teamScope && (configs?.[teamScope] || defaults)) || config;
 
   // Where a new task would go: the team on screen, else the selected one.
   const createIn = teamScope || orgId;

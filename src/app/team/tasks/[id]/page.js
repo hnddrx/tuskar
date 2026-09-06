@@ -30,7 +30,7 @@ function TeamTaskDetailPageInner() {
   const { id } = useParams();
   const searchParams = useSearchParams();
   const {
-    team: { tasks, comments, config, configs, updateTask, addComment, deleteComment, members, orgId, orgName },
+    team: { tasks, comments, config, configs, defaults, updateTask, addComment, deleteComment, members, orgId, orgName },
   } = useTasks();
 
   const [pendingChanges, setPendingChanges] = useState({});
@@ -41,7 +41,9 @@ function TeamTaskDetailPageInner() {
 
   const task = tasks.find((t) => t.id === id);
   const taskMembers = membersForTeam(members, task?.orgId);
-  const taskConfig = (task?.orgId && configs?.[task.orgId]) || config;
+  // The task's own team decides the dropdowns; an unconfigured team falls back
+  // to the starting set rather than to the selected team's.
+  const taskConfig = (task?.orgId && (configs?.[task.orgId] || defaults)) || config;
 
   if (!task) {
     return (
