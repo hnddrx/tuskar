@@ -192,15 +192,24 @@ function TeamTasksPageInner() {
   // Creating a team opens Clerk's own screen over this page rather than
   // navigating away from a list you were part-way through reading.
   const { openCreateOrganization } = useClerk();
+
+  // "?team=" narrows the list to one team; without it you get every team you
+  // are in. An id for a team you have left falls back to the wider view.
+  const teamScope = resolveTeamScope(searchParams.get(TEAM_PARAM), orgs);
+  // Where a new task would go: the team on screen, else the selected one.
+  //
+  // Declared up here, above the shortcut that reads it, rather than beside the
+  // button it belongs to. `enabled` is evaluated as the shortcut is registered,
+  // so a `const` declared further down is still in its temporal dead zone and
+  // throws on every render of this page.
+  const createIn = teamScope || orgId;
+
   useShortcut("n", "New task", () => openNew(), { enabled: Boolean(createIn) });
   useShortcut("g", "New team", () =>
     openCreateOrganization({ afterCreateOrganizationUrl: "/team/tasks?team=:id" })
   );
   useShortcut("f", "Filters", () => setFiltersOpen((open) => !open));
 
-  // "?team=" narrows the list to one team; without it you get every team you
-  // are in. An id for a team you have left falls back to the wider view.
-  const teamScope = resolveTeamScope(searchParams.get(TEAM_PARAM), orgs);
   const scopedOrg = teamScope ? orgs.find((o) => o.id === teamScope) : null;
 
   const tasks = useMemo(
@@ -291,8 +300,6 @@ function TeamTasksPageInner() {
   // selected team happens to use.
   const scopedConfig = (teamScope && (configs?.[teamScope] || defaults)) || config;
 
-  // Where a new task would go: the team on screen, else the selected one.
-  const createIn = teamScope || orgId;
   // The routes enforce this too — disabling the control just avoids offering
   // an action that would come back refused. Edit and delete are checked per
   // row instead, against the team that row's task belongs to: this table can
